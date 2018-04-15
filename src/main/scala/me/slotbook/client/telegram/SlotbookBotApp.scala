@@ -8,7 +8,7 @@ import me.slotbook.client.telegram.dao.{InMemoryStateDao, StateDao}
 
 object SlotbookBotApp extends App {
   override def main(args: Array[String]): Unit = {
-    new Bot("542319172:AAE0pSkdyCTG501oj2-j8S_0m_AVWwTDz0I").run()
+
   }
 }
 
