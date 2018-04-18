@@ -1,76 +1,106 @@
 package me.slotbook.client.telegram
 
-import info.mukel.telegrambot4s.api.{Polling, TelegramBot}
 import info.mukel.telegrambot4s.api.declarative.{Callbacks, Commands}
-import info.mukel.telegrambot4s.models.KeyboardButton.requestLocation
-import info.mukel.telegrambot4s.models.ReplyKeyboardMarkup.singleButton
+import info.mukel.telegrambot4s.api.{Polling, TelegramBot}
+import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.dao.{InMemoryStateDao, StateDao}
-import me.slotbook.client.telegram.model.AskForClientLocation
-import me.slotbook.client.telegram.service.SlotbookApiClient
+import me.slotbook.client.telegram.model.{AskForClientLocation, AskForClientService, AskForServiceCategory}
+import me.slotbook.client.telegram.service.DefaultSlotbookApiClient
 
 import scala.concurrent.Future
 
 class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands with Callbacks {
-    override def token: String = tok
+  override def token: String = tok
 
-    val slotbookApiClient: SlotbookApiClient = new SlotbookApiClient()
-    val stateDao: StateDao = new InMemoryStateDao()
+  val CATEGORY_TAG = "category"
+  val SERVICE_TAG = "service"
 
-    onCommand('help) { implicit msg =>
-      reply("Just use /find")
+  val slotbookApiClient: DefaultSlotbookApiClient = new DefaultSlotbookApiClient()
+  val stateDao: StateDao = new InMemoryStateDao()
+
+  onCommand('help) { implicit msg =>
+    reply("Just use /find")
+  }
+
+  onCommand('users) { implicit msg =>
+    stateDao.getAll.map { userIds =>
+      reply(userIds.mkString(","))
+    }
+  }
+
+  onCommand('find) { implicit msg =>
+    println(msg.from)
+
+    msg.from match {
+      case Some(user) => stateDao.registerUser(user)
+      case None => Future.failed(new RuntimeException("Unable to register anonymous user"))
     }
 
-    onCommand('users) { implicit msg =>
-      stateDao.getAll.map { userIds =>
-        reply(userIds.mkString(","))
+    reply(
+      text = AskForClientLocation().message,
+      replyMarkup = Some(ReplyKeyboardMarkup.singleButton(KeyboardButton.requestLocation(AskForClientLocation().message)))).map { message =>
+      println(message)
+    }
+  }
+
+  onCommand('category) { implicit msg =>
+    slotbookApiClient.listCategories.map { categories =>
+      val msf = AskForServiceCategory(categories, prefixTag(CATEGORY_TAG))
+      reply(msf.message, replyMarkup = msf.markup)
+    }
+  }
+
+  onMessage { implicit msg =>
+    if (msg.location.isDefined) {
+      println(s"User's location: ${msg.location}")
+
+      // update user's location
+    }
+  }
+
+  onCallbackWithTag(CATEGORY_TAG) { implicit callback =>
+    println(s"category: $callback")
+
+    ackCallback(text = Some("Category has been accepted"))
+
+    callback.message.map { message =>
+      slotbookApiClient.listCategoryServices.map { services =>
+        val rpl = AskForClientService(services, prefixTag(SERVICE_TAG))
+
+        reply(rpl.message, replyMarkup = rpl.markup)(message)
       }
     }
+  }
 
-    onCommand('find) { implicit msg =>
-      println(msg.from)
+  onCallbackWithTag(SERVICE_TAG) { implicit callback =>
+    println(s"category: $callback")
 
-      msg.from match {
-        case Some(user) => stateDao.registerUser(user)
-        case None => Future.failed(new RuntimeException("Unable to register anonymous user"))
-      }
+    ackCallback(text = Some("Service has been accepted"))
 
-      reply(
-        text = AskForClientLocation().message,
-        replyMarkup = Some(singleButton(requestLocation(AskForClientLocation().message)))).map { message =>
-        println(message)
-      }
+    callback.message.map { message =>
+      reply("Service has been accepted")(message)
     }
+  }
 
-    onCallbackQuery { implicit callbackQuery =>
-      println(callbackQuery)
-      println(s"gameShortName: ${callbackQuery.gameShortName}")
-      println(s"data: ${callbackQuery.data}")
+  override def receiveMessage(msg: Message): Unit = {
+    super.receiveMessage(msg)
 
-      callbackQuery.data.foreach { data =>
-        ackCallback(text = Some("Hello Pepe"), url = Some("https://t.me/MenialBot?start=1234"))
-      }
+    println(msg)
+  }
 
-      // You must acknowledge callback queries, even if there's no response.
-      // e.g. just ackCallback()
+  override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit
 
-      // To open game, you may need to pass extra (url-encoded) information to the game.
-      //ackCallback(url = Some("https://my.awesome.game.com/awesome"))
-    }
+  = {
+    super.receiveCallbackQuery(callbackQuery)
 
-    onCommand('contact) { implicit msg =>
-      println(msg)
-      reply("Location has been accepted")
-    }
+    println(callbackQuery)
+  }
 
-    onCommand('category) { implicit msg =>
-      slotbookApiClient.listCategories.map { categories =>
-        reply(categories.mkString("\n"))
-      }
-    }
+  override def run(): Unit
 
-    override def run(): Unit = {
-      super.run()
+  = {
+    super.run()
 
-      println("Bot has been started")
-    }
+    println("Bot has been started")
+  }
 }
