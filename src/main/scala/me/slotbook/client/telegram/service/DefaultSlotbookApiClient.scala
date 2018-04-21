@@ -1,44 +1,17 @@
 package me.slotbook.client.telegram.service
 
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
+import me.slotbook.client.telegram.model.slotbook._
 import org.joda.time.LocalDate
+import play.api.libs.json.JsValue
+import play.api.libs.ws.ahc.StandaloneAhcWSClient
 
 import scala.concurrent.Future
 
 trait SlotbookApiClient {
-  /**
-    * This type represents an Id of a service.
-    */
-  type ServiceId = Int
-
-  /**
-    * This type represents the name of a service.
-    */
-  type ServiceName = String
-
-  /**
-    * This type represents a Service. It provides an Id and a Name.
-    */
-  type Service = (ServiceId, ServiceName)
-
-  /**
-    * This type represents an Id of the company.
-    */
-  type CompanyId = Int
-
-  /**
-    * This type represents a name of the company.
-    */
-  type CompanyName = String
-
-  type Company = (CompanyId, CompanyName)
-
-  type EmployeeId = String
-
-  type EmployeeName = String
-
-  type EmployeeRating = Int
-
-  type Employee = (EmployeeId, EmployeeName, EmployeeRating)
+  type Lat = BigDecimal
+  type Lng = BigDecimal
 
   type PeriodId = Int
 
@@ -52,58 +25,90 @@ trait SlotbookApiClient {
     *
     * @return map of service id -> service name.
     */
-  def listCategories: Future[Map[ServiceId, ServiceName]]
+  def listCategories: Future[Seq[Service]]
 
-  def listCategoryServices(categoryId: Int): Future[Map[ServiceId, ServiceName]]
+  def listCategoryServices(categoryId: Int): Future[Seq[ServiceWithCompaniesCount]]
 
-  def listCompaniesByService(serviceId: ServiceId, location: String): Future[Seq[(CompanyId, CompanyName)]]
+  def listCompaniesByService(serviceId: Service.ID, location: Location): Future[Seq[CompanyDistanceRating]]
 
-  def listEmployeesByCompany(companyId: CompanyId): Future[Seq[Employee]]
+  def listEmployeesByCompany(companyId: Company.ID): Future[Seq[UserWithRating]]
 
-  def listSlots(serviceId: ServiceId, companyId: CompanyId, employeeId: EmployeeId, date: LocalDate): Future[Seq[Timeslot]]
+  def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: LocalDate): Future[Seq[Timeslot]]
 
   def bindSlot(slotId: PeriodId): Future[Timeslot]
 }
 
 class DefaultSlotbookApiClient extends SlotbookApiClient {
 
+  import play.api.libs.ws.JsonBodyReadables._
+
+  import scala.concurrent.ExecutionContext.Implicits._
+
+  val apiUrl = "http://127.0.0.1:9000/api"
+  implicit val system = ActorSystem()
+
+  system.registerOnTermination {
+    System.exit(0)
+  }
+  implicit val materializer: ActorMaterializer = ActorMaterializer()
+
+  val wsClient = StandaloneAhcWSClient()
+
   /**
     * Returns list of service categories.
     *
     * @return map of service id -> service name.
     */
-  def listCategories: Future[Map[ServiceId, ServiceName]] =
-    Future.successful(Map(1 -> "Category 1", 2 -> "Category 2", 3 -> "Category 3"))
-
-  /**
-    *
-    * @param categoryId
-    * @return
-    */
-  def listCategoryServices(categoryId: Int): Future[Map[ServiceId, ServiceName]] = {
-    Future.successful(Map(1 -> "Service 1", 2 -> "Service 2", 3 -> "Service 3"))
+  def listCategories: Future[Seq[Service]] = {
+    wsClient.url(s"$apiUrl/categories").get().map { response =>
+      response.body[JsValue].validate[Seq[Service]].asOpt.getOrElse(Seq())
+    }
   }
 
   /**
+    * Returns services by specific category.
     *
-    * @param serviceId
-    * @param location
+    * @param categoryId id of the service category.
     * @return
     */
-  def listCompaniesByService(serviceId: ServiceId, location: String): Future[Seq[(CompanyId, CompanyName)]] = {
-    Future.successful(Seq(1 -> "Company 1", 2 -> "Company 2", 3 -> "Company 3"))
+  def listCategoryServices(categoryId: Int): Future[Seq[ServiceWithCompaniesCount]] = {
+    wsClient.url(s"$apiUrl/categories/$categoryId/services").get().map { response =>
+      response.body[JsValue].validate[Seq[ServiceWithCompaniesCount]].asOpt.getOrElse(Seq())
+    }
   }
 
   /**
+    * Returns list of companies by specified service and location.
     *
-    * @param companyId
+    * @param serviceId id of the service.
+    * @param location  location to filter.
     * @return
     */
-  override def listEmployeesByCompany(companyId: CompanyId): Future[Seq[(EmployeeId, EmployeeName, EmployeeRating)]] = {
-    Future.successful(Seq(("id1", "Employee 1", 1), ("id2", "Employee 2", 2), ("id3", "Employee 3", 3)))
+  def listCompaniesByService(serviceId: Service.ID, location: Location): Future[Seq[CompanyDistanceRating]] = {
+    wsClient.url(s"$apiUrl/services/$serviceId/companies/location")
+      .withQueryStringParameters("lat" -> location.lat.toString(), "lng" -> location.lng.toString(), "distance" -> "20", "limit" -> "100")
+      .get()
+      .map { response =>
+        println(response.body)
+        response.body[JsValue].validate[Seq[CompanyDistanceRating]].asOpt.getOrElse(Seq())
+      }
   }
 
-  override def listSlots(serviceId: ServiceId, companyId: CompanyId, employeeId: EmployeeId, date: LocalDate): Future[Seq[(PeriodId, String)]] = {
+  /**
+    * Returns list of employees of specified company.
+    *
+    * @param companyId id of the company
+    * @return
+    */
+  override def listEmployeesByCompany(companyId: Company.ID): Future[Seq[UserWithRating]] = {
+    wsClient.url(s"$apiUrl/companies/$companyId/employees").get().map { response =>
+      println(response.body)
+
+      response.body[JsValue].validate[Seq[UserWithRating]].asOpt.getOrElse(Seq())
+    }
+  }
+
+  override def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: LocalDate): Future[Seq[(PeriodId, String)]] = {
     Future.successful(Seq(1 -> "12:00", 2 -> "13:00", 3 -> "14:00"))
   }
 

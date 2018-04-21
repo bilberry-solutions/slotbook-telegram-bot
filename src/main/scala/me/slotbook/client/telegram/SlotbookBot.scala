@@ -90,7 +90,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
       case Some(serviceId) =>
         println(s"service: $serviceId")
         callback.message.map { message =>
-          slotbookApiClient.listCompaniesByService(serviceId.toInt, "location").map { companies =>
+          slotbookApiClient.listCompaniesByService(serviceId.toInt, model.slotbook.Location(BigDecimal(50.434171), BigDecimal(30.485722))).map { companies =>
             val rpl = AskForCompany(companies, prefixTag(COMPANY_TAG))
 
             reply(rpl.message, replyMarkup = rpl.markup)(message)
@@ -106,7 +106,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
     callback.data match {
       case Some(companyId) =>
-        println(s"service: $companyId")
+        println(s"company: $companyId")
         callback.message.map { message =>
           slotbookApiClient.listEmployeesByCompany(companyId.toInt).map { employees =>
             val rpl = AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))
