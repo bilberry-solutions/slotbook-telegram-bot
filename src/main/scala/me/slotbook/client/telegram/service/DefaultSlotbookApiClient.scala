@@ -3,7 +3,7 @@ package me.slotbook.client.telegram.service
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import me.slotbook.client.telegram.model.slotbook._
-import org.joda.time.LocalDate
+import org.joda.time.LocalDateTime
 import play.api.libs.json.JsValue
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 
@@ -12,13 +12,6 @@ import scala.concurrent.Future
 trait SlotbookApiClient {
   type Lat = BigDecimal
   type Lng = BigDecimal
-
-  type PeriodId = Int
-
-  /**
-    * This type represents a timeslot
-    */
-  type Timeslot = (PeriodId, String)
 
   /**
     * Returns list of service categories.
@@ -33,9 +26,9 @@ trait SlotbookApiClient {
 
   def listEmployeesByCompany(companyId: Company.ID): Future[Seq[UserWithRating]]
 
-  def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: LocalDate): Future[Seq[Timeslot]]
+  def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: String): Future[Seq[Period]]
 
-  def bindSlot(slotId: PeriodId): Future[Timeslot]
+  def bindSlot(slotId: Timeslot.ID): Future[Unit]
 }
 
 class DefaultSlotbookApiClient extends SlotbookApiClient {
@@ -102,17 +95,22 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     */
   override def listEmployeesByCompany(companyId: Company.ID): Future[Seq[UserWithRating]] = {
     wsClient.url(s"$apiUrl/companies/$companyId/employees").get().map { response =>
-      println(response.body)
-
       response.body[JsValue].validate[Seq[UserWithRating]].asOpt.getOrElse(Seq())
     }
   }
 
-  override def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: LocalDate): Future[Seq[(PeriodId, String)]] = {
-    Future.successful(Seq(1 -> "12:00", 2 -> "13:00", 3 -> "14:00"))
+  override def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: String): Future[Seq[Period]] = {
+    wsClient.url(s"$apiUrl/employees/$employeeId/slots/$serviceId/$date/1").get().map { response =>
+      println(response.status)
+      println(response.body)
+      response.body[JsValue].validate[Seq[DateWithTimeslot]].asOpt match {
+        case Some(Seq(data)) => data.periods
+        case None => Seq()
+      }
+    }
   }
 
-  override def bindSlot(slotId: PeriodId): Future[(PeriodId, String)] = {
-    Future.successful(slotId, "13:00")
+  override def bindSlot(slotId: Timeslot.ID): Future[Unit] = {
+    Future.successful()
   }
 }

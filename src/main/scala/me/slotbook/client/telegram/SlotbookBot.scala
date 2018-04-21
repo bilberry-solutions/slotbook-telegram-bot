@@ -5,8 +5,10 @@ import info.mukel.telegrambot4s.api.{Polling, TelegramBot}
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.dao.{InMemoryStateDao, StateDao}
 import me.slotbook.client.telegram.model._
+import me.slotbook.client.telegram.model.slotbook.Timeslot
+import me.slotbook.client.telegram.model.slotbook.Timeslot.dateFormatter
 import me.slotbook.client.telegram.service.DefaultSlotbookApiClient
-import org.joda.time.LocalDate
+import org.joda.time.{LocalDate, LocalDateTime}
 
 import scala.concurrent.Future
 
@@ -18,6 +20,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
   val COMPANY_TAG = "company_"
   val EMPLOYEE_TAG = "employee_"
   val SLOT_TAG = "slot_"
+  val DATE_TAG = "date_"
 
   val slotbookApiClient: DefaultSlotbookApiClient = new DefaultSlotbookApiClient()
   val stateDao: StateDao = new InMemoryStateDao()
@@ -126,15 +129,36 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
       case Some(employeeId) =>
         println(s"service: $employeeId")
         callback.message.map { message =>
-          slotbookApiClient.listSlots(1, 1, employeeId, LocalDate.now).map { slots =>
+          val today = LocalDate.now.toDateTimeAtStartOfDay
+          val tomorrow = today.plusDays(1)
+          val afterTomorrow = today.plusDays(2)
+
+          val rpl = AskForDates(Seq(today, tomorrow, afterTomorrow).map(dateFormatter.print(_)), prefixTag(DATE_TAG))
+
+          reply(rpl.message, replyMarkup = rpl.markup)(message)
+        }
+      case None => println("Date was not selected")
+    }
+  }
+
+  onCallbackWithTag(DATE_TAG) { implicit callback =>
+    ackCallback(text = Some("Date has been accepted"))
+
+    callback.data match {
+      case Some(date) =>
+        println(s"date: $date")
+        callback.message.map { message =>
+          slotbookApiClient.listSlots(242, 1, "7196bc99-8f93-4c03-9982-0b4f40ddebec", date).map { slots =>
+            println(slots)
             val rpl = AskForSlot(slots, prefixTag(SLOT_TAG))
 
             reply(rpl.message, replyMarkup = rpl.markup)(message)
           }
         }
-      case None => println("Employee was not selected")
+      case None => println("Timeslot was not selected")
     }
   }
+
 
   onCallbackWithTag(SLOT_TAG) { implicit callback =>
     ackCallback(text = Some("Slot has been accepted"))
