@@ -2,5 +2,10 @@ package me.slotbook.client.telegram.model
 
 import me.slotbook.client.telegram.model.slotbook._
 
-case class State(categoryId: Service.ID, serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID,
-                 location: Location, slot: Timeslot)
+case class State(userId: Option[Int] = None,
+                 categoryId: Option[Service.ID] = None,
+                 serviceId: Option[Service.ID] = None,
+                 companyId: Option[Company.ID] = None,
+                 employeeId: Option[User.ID] = None,
+                 location: Option[Location] = None,
+                 slotId: Option[String] = None)

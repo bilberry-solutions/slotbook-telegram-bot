@@ -62,11 +62,11 @@ case class AskForEmployee(employees: Seq[UserWithRating],
   }
 }
 
-case class AskForDates(dates: Seq[String], prefixTagger: String => String) extends Reply {
+case class AskForDates(dates: Seq[(String, String)], prefixTagger: String => String) extends Reply {
   override def message: String = "Please choose a date"
 
   override def markup: Option[ReplyMarkup] = {
-    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(dates.map(d => d -> d))(prefixTagger)))
+    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(dates)(prefixTagger)))
   }
 }
 
@@ -76,6 +76,6 @@ case class AskForSlot(periods: Seq[Period], prefixTagger: String => String) exte
   override def markup: Option[ReplyMarkup] = {
     val data = periods.map(p => (p.period.startTime.toString, p.period.startTime.toString))
 
-    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
+    Some(InlineKeyboardMarkup.singleRow(buttonsFor(data)(prefixTagger)))
   }
 }

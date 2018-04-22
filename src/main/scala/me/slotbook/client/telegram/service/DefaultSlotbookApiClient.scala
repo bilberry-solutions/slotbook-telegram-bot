@@ -3,7 +3,6 @@ package me.slotbook.client.telegram.service
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import me.slotbook.client.telegram.model.slotbook._
-import org.joda.time.LocalDateTime
 import play.api.libs.json.JsValue
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 

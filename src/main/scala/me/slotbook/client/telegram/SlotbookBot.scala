@@ -3,12 +3,11 @@ package me.slotbook.client.telegram
 import info.mukel.telegrambot4s.api.declarative.{Callbacks, Commands}
 import info.mukel.telegrambot4s.api.{Polling, TelegramBot}
 import info.mukel.telegrambot4s.models._
-import me.slotbook.client.telegram.dao.{InMemoryStateDao, StateDao}
 import me.slotbook.client.telegram.model._
-import me.slotbook.client.telegram.model.slotbook.Timeslot
-import me.slotbook.client.telegram.model.slotbook.Timeslot.dateFormatter
-import me.slotbook.client.telegram.service.DefaultSlotbookApiClient
-import org.joda.time.{LocalDate, LocalDateTime}
+import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
+import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
+import org.joda.time.LocalDate
+import me.slotbook.client.telegram.model.slotbook.Location
 
 import scala.concurrent.Future
 
@@ -23,23 +22,17 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
   val DATE_TAG = "date_"
 
   val slotbookApiClient: DefaultSlotbookApiClient = new DefaultSlotbookApiClient()
-  val stateDao: StateDao = new InMemoryStateDao()
+  val stateService = StateService()
 
   onCommand('help) { implicit msg =>
     reply("Just use /find")
-  }
-
-  onCommand('users) { implicit msg =>
-    stateDao.getAll.map { userIds =>
-      reply(userIds.mkString(","))
-    }
   }
 
   onCommand('find) { implicit msg =>
     println(msg.from)
 
     msg.from match {
-      case Some(user) => stateDao.registerUser(user)
+      case Some(user) => stateService.update(stateService.current.copy(userId = Some(user.id)))
       case None => Future.failed(new RuntimeException("Unable to register anonymous user"))
     }
 
@@ -60,8 +53,8 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
   onMessage { implicit msg =>
     if (msg.location.isDefined) {
       println(s"User's location: ${msg.location}")
-
-      // update user's location
+      val loc = msg.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
+      stateService.update(stateService.current.copy(location = loc))
     }
   }
 
@@ -71,6 +64,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     callback.data match {
       case Some(categoryId) =>
         println(s"category: $categoryId")
+        stateService.update(stateService.current.copy(categoryId = Some(categoryId.toInt)))
         callback.message.map { message =>
           slotbookApiClient.listCategoryServices(categoryId.toInt).map { services =>
             val rpl = AskForClientService(services, prefixTag(SERVICE_TAG))
@@ -92,6 +86,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     callback.data match {
       case Some(serviceId) =>
         println(s"service: $serviceId")
+        stateService.update(stateService.current.copy(serviceId = Some(serviceId.toInt)))
         callback.message.map { message =>
           slotbookApiClient.listCompaniesByService(serviceId.toInt, model.slotbook.Location(BigDecimal(50.434171), BigDecimal(30.485722))).map { companies =>
             val rpl = AskForCompany(companies, prefixTag(COMPANY_TAG))
@@ -110,6 +105,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     callback.data match {
       case Some(companyId) =>
         println(s"company: $companyId")
+        stateService.update(stateService.current.copy(companyId = Some(companyId.toInt)))
         callback.message.map { message =>
           slotbookApiClient.listEmployeesByCompany(companyId.toInt).map { employees =>
             val rpl = AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))
@@ -128,12 +124,14 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     callback.data match {
       case Some(employeeId) =>
         println(s"service: $employeeId")
+        stateService.update(stateService.current.copy(employeeId = Some(employeeId)))
         callback.message.map { message =>
           val today = LocalDate.now.toDateTimeAtStartOfDay
           val tomorrow = today.plusDays(1)
           val afterTomorrow = today.plusDays(2)
 
-          val rpl = AskForDates(Seq(today, tomorrow, afterTomorrow).map(dateFormatter.print(_)), prefixTag(DATE_TAG))
+          val rpl = AskForDates(Seq(today, tomorrow, afterTomorrow)
+            .map(d => (dateTimeFormatter.print(d), dateFormatter.print(d))), prefixTag(DATE_TAG))
 
           reply(rpl.message, replyMarkup = rpl.markup)(message)
         }
@@ -166,6 +164,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     callback.data match {
       case Some(slotId) =>
         println(s"slot: $slotId")
+        stateService.update(stateService.current.copy(slotId = Some(slotId)))
         callback.message.map { message =>
           slotbookApiClient.bindSlot(slotId.toInt).map { _ =>
             reply("Event has been created")(message)
