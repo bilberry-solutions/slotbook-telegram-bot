@@ -2,6 +2,7 @@ package me.slotbook.client.telegram.service
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.typesafe.scalalogging.Logger
 import me.slotbook.client.telegram.model.slotbook._
 import play.api.libs.json.JsValue
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
@@ -21,11 +22,11 @@ trait SlotbookApiClient {
 
   def listCategoryServices(categoryId: Int): Future[Seq[ServiceWithCompaniesCount]]
 
-  def listCompaniesByService(serviceId: Service.ID, location: Location): Future[Seq[CompanyDistanceRating]]
+  def listCompaniesByService(serviceId: Service.ID, location: Option[Location]): Future[Seq[CompanyDistanceRating]]
 
   def listEmployeesByCompany(companyId: Company.ID): Future[Seq[UserWithRating]]
 
-  def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: String): Future[Seq[Period]]
+  def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String): Future[Seq[Period]]
 
   def bindSlot(slotId: Timeslot.ID): Future[Unit]
 }
@@ -76,12 +77,19 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     * @param location  location to filter.
     * @return
     */
-  def listCompaniesByService(serviceId: Service.ID, location: Location): Future[Seq[CompanyDistanceRating]] = {
-    wsClient.url(s"$apiUrl/services/$serviceId/companies/location")
-      .withQueryStringParameters("lat" -> location.lat.toString(), "lng" -> location.lng.toString(), "distance" -> "20", "limit" -> "100")
-      .get()
+  def listCompaniesByService(serviceId: Service.ID, location: Option[Location]): Future[Seq[CompanyDistanceRating]] = {
+    val url = location.map {
+      loc =>
+        wsClient.url(s"$apiUrl/services/$serviceId/companies/location")
+          .withQueryStringParameters("lat" -> loc.lat.toString(), "lng" -> loc.lng.toString(), "distance" -> "20", "limit" -> "100")
+    }.getOrElse {
+      wsClient.url(s"$apiUrl/services/$serviceId/companies")
+    }
+
+    Logger.apply("Test").debug(s"url: $url")
+
+    url.get()
       .map { response =>
-        println(response.body)
         response.body[JsValue].validate[Seq[CompanyDistanceRating]].asOpt.getOrElse(Seq())
       }
   }
@@ -98,10 +106,8 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     }
   }
 
-  override def listSlots(serviceId: Service.ID, companyId: Company.ID, employeeId: User.ID, date: String): Future[Seq[Period]] = {
+  override def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String): Future[Seq[Period]] = {
     wsClient.url(s"$apiUrl/employees/$employeeId/slots/$serviceId/$date/1").get().map { response =>
-      println(response.status)
-      println(response.body)
       response.body[JsValue].validate[Seq[DateWithTimeslot]].asOpt match {
         case Some(Seq(data)) => data.periods
         case None => Seq()
