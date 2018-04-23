@@ -29,12 +29,12 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
   }
 
   onCommand('find) { implicit msg =>
-    println(msg.from)
+    /*println(msg.from)
 
     msg.from match {
       case Some(user) => stateService.update(stateService.current.copy(userId = Some(user.id)))
       case None => Future.failed(new RuntimeException("Unable to register anonymous user"))
-    }
+    }*/
 
     reply(
       text = AskForClientLocation().message,
@@ -51,10 +51,10 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
   }
 
   onMessage { implicit msg =>
-    if (msg.location.isDefined) {
+    if (msg.location.isDefined && msg.from.isDefined) {
       println(s"User's location: ${msg.location}")
       val loc = msg.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
-      stateService.update(stateService.current.copy(location = loc))
+      stateService.updateLocation(msg.from.get.id, loc)
     }
   }
 
@@ -63,8 +63,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
     callback.data match {
       case Some(categoryId) =>
-        println(s"category: $categoryId")
-        stateService.update(stateService.current.copy(categoryId = Some(categoryId.toInt)))
+        stateService.updateCategory(callback.from.id, categoryId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listCategoryServices(categoryId.toInt).map { services =>
             val rpl = AskForClientService(services, prefixTag(SERVICE_TAG))
@@ -85,10 +84,9 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
     callback.data match {
       case Some(serviceId) =>
-        println(s"service: $serviceId")
-        stateService.update(stateService.current.copy(serviceId = Some(serviceId.toInt)))
+        stateService.updateService(callback.from.id, serviceId.toInt)
         callback.message.map { message =>
-          slotbookApiClient.listCompaniesByService(serviceId.toInt, stateService.current.location).map { companies =>
+          slotbookApiClient.listCompaniesByService(serviceId.toInt, stateService.current(callback.from.id).location).map { companies =>
             val rpl = AskForCompany(companies, prefixTag(COMPANY_TAG))
 
             reply(rpl.message, replyMarkup = rpl.markup)(message)
@@ -105,7 +103,7 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     callback.data match {
       case Some(companyId) =>
         println(s"company: $companyId")
-        stateService.update(stateService.current.copy(companyId = Some(companyId.toInt)))
+        stateService.updateCompany(callback.from.id, companyId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listEmployeesByCompany(companyId.toInt).map { employees =>
             val rpl = AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))
@@ -123,13 +121,14 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
     callback.data match {
       case Some(employeeId) =>
-        stateService.update(stateService.current.copy(employeeId = Some(employeeId)))
+        stateService.updateEmployee(callback.from.id, employeeId)
 
         callback.message.map { message =>
           val today = LocalDate.now.toDateTimeAtStartOfDay
           val tomorrow = today.plusDays(1)
           val afterTomorrow = today.plusDays(2)
 
+          // TODO check why api returns slots in the past
           val rpl = AskForDates(Seq(today, tomorrow, afterTomorrow)
             .map(d => (dateTimeFormatter.print(d), dateFormatter.print(d))), prefixTag(DATE_TAG))
 
@@ -146,8 +145,8 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     callback.data match {
       case Some(date) =>
         callback.message.map { message =>
-          if (stateService.current.serviceId.isDefined && stateService.current.employeeId.isDefined) {
-            slotbookApiClient.listSlots(stateService.current.serviceId.get, stateService.current.employeeId.get, date).map { slots =>
+          if (stateService.current(callback.from.id).serviceId.isDefined && stateService.current(callback.from.id).employeeId.isDefined) {
+            slotbookApiClient.listSlots(stateService.current(callback.from.id).serviceId.get, stateService.current(callback.from.id).employeeId.get, date).map { slots =>
               if (slots.nonEmpty) {
                 val rpl = AskForSlot(slots, prefixTag(SLOT_TAG))
                 reply(rpl.message, replyMarkup = rpl.markup)(message)
@@ -169,7 +168,8 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
     callback.data match {
       case Some(slotId) =>
-        stateService.update(stateService.current.copy(slotId = Some(slotId)))
+        stateService.updateEmployee(callback.from.id, slotId)
+
         callback.message.map { message =>
           slotbookApiClient.bindSlot(slotId.toInt).map { slots =>
             reply("Event has been created")(message)
@@ -180,7 +180,9 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
   }
 
   onCommand('reset) { implicit message =>
-    stateService.reset().map { _ => reply("Search reset successful")}
+    if (message.from.isDefined) {
+      stateService.reset(message.from.get.id).map { _ => reply("Search reset successful") }
+    }
   }
 
   override def receiveMessage(msg: Message): Unit = {
