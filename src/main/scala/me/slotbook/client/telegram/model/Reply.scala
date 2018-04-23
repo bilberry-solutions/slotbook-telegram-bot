@@ -76,6 +76,6 @@ case class AskForSlot(periods: Seq[Period], prefixTagger: String => String) exte
   override def markup: Option[ReplyMarkup] = {
     val data = periods.map(p => (p.period.startTime.toString, p.period.startTime.toString))
 
-    Some(InlineKeyboardMarkup.singleRow(buttonsFor(data)(prefixTagger)))
+    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
   }
 }
