@@ -4,28 +4,25 @@ import info.mukel.telegrambot4s.api.declarative.{Callbacks, Commands}
 import info.mukel.telegrambot4s.api.{Polling, TelegramBot}
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model._
+import me.slotbook.client.telegram.model.slotbook.Location
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
 import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
 import org.joda.time.LocalDate
-import me.slotbook.client.telegram.model.slotbook.Location
 
-import scala.concurrent.Future
-
-class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands with Callbacks {
-  override def token: String = tok
-
+class SlotbookBot(val token: String) extends TelegramBot with Polling with Commands with Callbacks {
   val CATEGORY_TAG = "category_"
   val SERVICE_TAG = "service_"
   val COMPANY_TAG = "company_"
   val EMPLOYEE_TAG = "employee_"
   val SLOT_TAG = "slot_"
   val DATE_TAG = "date_"
+  val MENU_TAG = "help_"
 
   val slotbookApiClient: DefaultSlotbookApiClient = new DefaultSlotbookApiClient()
   val stateService = StateService()
 
-  onCommand('help) { implicit msg =>
-    reply("Just use /find")
+  onCommand('menu) { implicit msg =>
+    reply(text = "Help", replyMarkup = AskForMenuAction(prefixTag(MENU_TAG)).markup)
   }
 
   onCommand('find) { implicit msg =>
@@ -39,7 +36,6 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
     reply(
       text = AskForClientLocation().message,
       replyMarkup = Some(ReplyKeyboardMarkup.singleButton(KeyboardButton.requestLocation(AskForClientLocation().message)))).map { message =>
-      println(message)
     }
   }
 
@@ -52,10 +48,15 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
   onMessage { implicit msg =>
     if (msg.location.isDefined && msg.from.isDefined) {
-      println(s"User's location: ${msg.location}")
       val loc = msg.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
       stateService.updateLocation(msg.from.get.id, loc)
     }
+  }
+
+  onCallbackWithTag(MENU_TAG) { implicit callback =>
+    ackCallback(text = Some("Menu item has been selected"))
+
+    println(callback)
   }
 
   onCallbackWithTag(CATEGORY_TAG) { implicit callback =>
@@ -78,8 +79,6 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
   /* Handling service selection */
   onCallbackWithTag(SERVICE_TAG) { implicit callback =>
-    println(s"category: $callback")
-
     ackCallback(text = Some("Service has been accepted"))
 
     callback.data match {
@@ -102,7 +101,6 @@ class SlotbookBot(tok: String) extends TelegramBot with Polling with Commands wi
 
     callback.data match {
       case Some(companyId) =>
-        println(s"company: $companyId")
         stateService.updateCompany(callback.from.id, companyId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listEmployeesByCompany(companyId.toInt).map { employees =>

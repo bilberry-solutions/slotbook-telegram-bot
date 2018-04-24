@@ -2,7 +2,6 @@ package me.slotbook.client.telegram.model
 
 import info.mukel.telegrambot4s.models.{InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup}
 import me.slotbook.client.telegram.model.slotbook._
-import me.slotbook.client.telegram.service.SlotbookApiClient
 
 sealed trait Reply {
   def buttonsFor(collection: Seq[(String, String)])(tagger: String => String): Seq[InlineKeyboardButton] = {
@@ -12,6 +11,18 @@ sealed trait Reply {
   def message: String
 
   def markup: Option[ReplyMarkup] = None
+}
+
+case class AskForMenuAction(prefixTagger: String => String) extends Reply {
+  val messages = Seq(1 -> "Change language", 2 -> "Help", 3 -> "Reset search")
+
+  override def message: String = {
+    messages.mkString("\n")
+  }
+
+  override def markup: Option[ReplyMarkup] = {
+    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(messages.map(m => (m._1.toString, m._2)))(prefixTagger)))
+  }
 }
 
 case class AskForClientLocation() extends Reply {
