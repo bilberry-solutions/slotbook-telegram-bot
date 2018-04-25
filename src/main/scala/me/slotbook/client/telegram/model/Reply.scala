@@ -14,7 +14,11 @@ sealed trait Reply {
 }
 
 case class AskForMenuAction(prefixTagger: String => String) extends Reply {
-  val messages = Seq(1 -> "Change language", 2 -> "Help", 3 -> "Reset search")
+  val messages = Seq(
+    0 -> "\uD83D\uDD0E Start search",
+    1 -> "\uD83C\uDF10 Change language",
+    2 -> "\uD83D\uDCE2 Help",
+    3 -> "❌️Reset search")
 
   override def message: String = {
     messages.mkString("\n")
