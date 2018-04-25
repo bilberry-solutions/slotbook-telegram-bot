@@ -25,20 +25,6 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
     reply(text = "Help", replyMarkup = AskForMenuAction(prefixTag(MENU_TAG)).markup)
   }
 
-  onCommand('find) { implicit msg =>
-    /*println(msg.from)
-
-    msg.from match {
-      case Some(user) => stateService.update(stateService.current.copy(userId = Some(user.id)))
-      case None => Future.failed(new RuntimeException("Unable to register anonymous user"))
-    }*/
-
-    reply(
-      text = AskForClientLocation().message,
-      replyMarkup = Some(ReplyKeyboardMarkup.singleButton(KeyboardButton.requestLocation(AskForClientLocation().message)))).map { message =>
-    }
-  }
-
   onCommand('category) { implicit msg =>
     slotbookApiClient.listCategories.map { categories =>
       val msf = AskForServiceCategory(categories, prefixTag(CATEGORY_TAG))
@@ -56,7 +42,15 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   onCallbackWithTag(MENU_TAG) { implicit callback =>
     ackCallback(text = Some("Menu item has been selected"))
 
-    println(callback)
+    callback.message.map { message =>
+      callback.data.map(_.toInt) match {
+        case Some(AskForMenuAction.START_SEARCH_ACTION_ID) => reply(AskForClientLocation().message, replyMarkup = AskForClientLocation().markup)(message)
+        case Some(AskForMenuAction.CHANGE_LANG_ID) => reply(AskForNewLanguage().message, replyMarkup = AskForNewLanguage().markup)(message)
+        case Some(AskForMenuAction.HELP_ACTION_ID) => reply(HelpReply().message)(message)
+        case Some(AskForMenuAction.RESET_SEARCH_ACTION_ID) =>
+          stateService.reset(callback.from.id).map(_ => reply("Search reset successful")(message))
+      }
+    }
   }
 
   onCallbackWithTag(CATEGORY_TAG) { implicit callback =>
@@ -174,12 +168,6 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
           }
         }
       case None => println("Slot was not selected")
-    }
-  }
-
-  onCommand('reset) { implicit message =>
-    if (message.from.isDefined) {
-      stateService.reset(message.from.get.id).map { _ => reply("Search reset successful") }
     }
   }
 
