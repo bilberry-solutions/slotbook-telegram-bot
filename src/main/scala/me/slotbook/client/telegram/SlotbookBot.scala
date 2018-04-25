@@ -2,12 +2,15 @@ package me.slotbook.client.telegram
 
 import info.mukel.telegrambot4s.api.declarative.{Callbacks, Commands}
 import info.mukel.telegrambot4s.api.{Polling, TelegramBot}
+import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model._
 import me.slotbook.client.telegram.model.slotbook.Location
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
 import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
 import org.joda.time.LocalDate
+
+import scala.concurrent.Future
 
 class SlotbookBot(val token: String) extends TelegramBot with Polling with Commands with Callbacks {
   val CATEGORY_TAG = "category_"
@@ -44,9 +47,14 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
     callback.message.map { message =>
       callback.data.map(_.toInt) match {
-        case Some(AskForMenuAction.START_SEARCH_ACTION_ID) => reply(AskForClientLocation().message, replyMarkup = AskForClientLocation().markup)(message)
-        case Some(AskForMenuAction.CHANGE_LANG_ID) => reply(AskForNewLanguage().message, replyMarkup = AskForNewLanguage().markup)(message)
-        case Some(AskForMenuAction.HELP_ACTION_ID) => reply(HelpReply().message)(message)
+        case Some(AskForMenuAction.START_SEARCH_ACTION_ID) =>
+          slotbookApiClient.listCategories.map { categories =>
+            replyOverriding(AskForServiceCategory(categories, prefixTag(CATEGORY_TAG)), message)
+          }
+        case Some(AskForMenuAction.CHANGE_LANG_ID) =>
+          replyOverriding(AskForNewLanguage(), message)
+        case Some(AskForMenuAction.HELP_ACTION_ID) =>
+          replyOverriding(HelpReply(), message)
         case Some(AskForMenuAction.RESET_SEARCH_ACTION_ID) =>
           stateService.reset(callback.from.id).map(_ => reply("Search reset successful")(message))
       }
@@ -61,9 +69,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         stateService.updateCategory(callback.from.id, categoryId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listCategoryServices(categoryId.toInt).map { services =>
-            val rpl = AskForClientService(services, prefixTag(SERVICE_TAG))
-
-            reply(rpl.message, replyMarkup = rpl.markup)(message)
+            replyOverriding(AskForClientService(services, prefixTag(SERVICE_TAG)), message)
           }
         }
 
@@ -80,9 +86,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         stateService.updateService(callback.from.id, serviceId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listCompaniesByService(serviceId.toInt, stateService.current(callback.from.id).location).map { companies =>
-            val rpl = AskForCompany(companies, prefixTag(COMPANY_TAG))
-
-            reply(rpl.message, replyMarkup = rpl.markup)(message)
+            replyOverriding(AskForCompany(companies, prefixTag(COMPANY_TAG)), message)
           }
         }
       case None => println("Service was not selected")
@@ -98,9 +102,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         stateService.updateCompany(callback.from.id, companyId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listEmployeesByCompany(companyId.toInt).map { employees =>
-            val rpl = AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))
-
-            reply(rpl.message, replyMarkup = rpl.markup)(message)
+            replyOverriding(AskForEmployee(employees, prefixTag(EMPLOYEE_TAG)), message)
           }
         }
       case None => println("Employee was not selected")
@@ -124,7 +126,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
           val rpl = AskForDates(Seq(today, tomorrow, afterTomorrow)
             .map(d => (dateTimeFormatter.print(d), dateFormatter.print(d))), prefixTag(DATE_TAG))
 
-          reply(rpl.message, replyMarkup = rpl.markup)(message)
+          replyOverriding(rpl, message)
         }
 
       case None => println("Date was not selected")
@@ -141,7 +143,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
             slotbookApiClient.listSlots(stateService.current(callback.from.id).serviceId.get, stateService.current(callback.from.id).employeeId.get, date).map { slots =>
               if (slots.nonEmpty) {
                 val rpl = AskForSlot(slots, prefixTag(SLOT_TAG))
-                reply(rpl.message, replyMarkup = rpl.markup)(message)
+                replyOverriding(rpl, message)
               } else {
                 reply("There are no free slots on this date")(message)
               }
@@ -153,7 +155,6 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
       case None => println("Timeslot was not selected")
     }
   }
-
 
   onCallbackWithTag(SLOT_TAG) { implicit callback =>
     ackCallback(text = Some("Slot has been accepted"))
@@ -169,6 +170,13 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         }
       case None => println("Slot was not selected")
     }
+  }
+
+  def replyOverriding(reply: Reply, message: Message): Future[Either[Boolean, Message]] = {
+    request(
+      EditMessageReplyMarkup(Some(ChatId(message.source)),
+        Some(message.messageId),
+        replyMarkup = reply.markup.map(_.asInstanceOf[InlineKeyboardMarkup])))
   }
 
   override def receiveMessage(msg: Message): Unit = {
