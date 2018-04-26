@@ -1,11 +1,13 @@
 package me.slotbook.client.telegram
 
+import com.osinka.i18n.{Lang, Messages}
 import info.mukel.telegrambot4s.api.declarative.{Callbacks, Commands}
 import info.mukel.telegrambot4s.api.{Polling, TelegramBot}
 import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
+import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
-import me.slotbook.client.telegram.model.slotbook.Location
+import me.slotbook.client.telegram.model.slotbook.{Language, Location}
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
 import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
 import org.joda.time.LocalDate
@@ -13,25 +15,17 @@ import org.joda.time.LocalDate
 import scala.concurrent.Future
 
 class SlotbookBot(val token: String) extends TelegramBot with Polling with Commands with Callbacks {
-  val CATEGORY_TAG = "category_"
-  val SERVICE_TAG = "service_"
-  val COMPANY_TAG = "company_"
-  val EMPLOYEE_TAG = "employee_"
-  val SLOT_TAG = "slot_"
-  val DATE_TAG = "date_"
-  val MENU_TAG = "help_"
 
   val slotbookApiClient: DefaultSlotbookApiClient = new DefaultSlotbookApiClient()
   val stateService = StateService()
 
   onCommand('menu) { implicit msg =>
-    reply(text = "Help", replyMarkup = AskForMenuAction(prefixTag(MENU_TAG)).markup)
+    replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), language(msg)), msg)
   }
 
   onCommand('category) { implicit msg =>
     slotbookApiClient.listCategories.map { categories =>
-      val msf = AskForServiceCategory(categories, prefixTag(CATEGORY_TAG))
-      reply(msf.message, replyMarkup = msf.markup)
+      replyWithNew(AskForServiceCategory(categories, prefixTag(CATEGORY_TAG)), msg)
     }
   }
 
@@ -46,18 +40,35 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
     ackCallback(text = Some("Menu item has been selected"))
 
     callback.message.map { message =>
+      val lang = language(message)
+
       callback.data.map(_.toInt) match {
         case Some(AskForMenuAction.START_SEARCH_ACTION_ID) =>
           slotbookApiClient.listCategories.map { categories =>
-            replyOverriding(AskForServiceCategory(categories, prefixTag(CATEGORY_TAG)), message)
+            replyWithNew(AskForServiceCategory(categories, prefixTag(CATEGORY_TAG)), message)
           }
         case Some(AskForMenuAction.CHANGE_LANG_ID) =>
-          replyOverriding(AskForNewLanguage(), message)
+          replyWithNew(AskForNewLanguage(prefixTag(LANGUAGE_TAG)), message)
         case Some(AskForMenuAction.HELP_ACTION_ID) =>
-          replyOverriding(HelpReply(), message)
+          replyWithNew(HelpReply(), message)
         case Some(AskForMenuAction.RESET_SEARCH_ACTION_ID) =>
           stateService.reset(callback.from.id).map(_ => reply("Search reset successful")(message))
       }
+    }
+  }
+
+  onCallbackWithTag(LANGUAGE_TAG) { implicit callback =>
+    ackCallback(text = Some("Language has been changed"))
+
+    println(callback.data)
+    callback.message match {
+      case Some(message) =>
+        callback.data match {
+          case Some(lang) =>
+            stateService.updateLanguage(callback.from.id, Lang(lang))
+          case None => reply("Unknown language specified")(message)
+        }
+      case None => println("Unable to extract message from callback")
     }
   }
 
@@ -69,7 +80,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         stateService.updateCategory(callback.from.id, categoryId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listCategoryServices(categoryId.toInt).map { services =>
-            replyOverriding(AskForClientService(services, prefixTag(SERVICE_TAG)), message)
+            replyWithNew(AskForClientService(services, prefixTag(SERVICE_TAG)), message)
           }
         }
 
@@ -86,7 +97,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         stateService.updateService(callback.from.id, serviceId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listCompaniesByService(serviceId.toInt, stateService.current(callback.from.id).location).map { companies =>
-            replyOverriding(AskForCompany(companies, prefixTag(COMPANY_TAG)), message)
+            replyWithNew(AskForCompany(companies, prefixTag(COMPANY_TAG)), message)
           }
         }
       case None => println("Service was not selected")
@@ -102,7 +113,9 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         stateService.updateCompany(callback.from.id, companyId.toInt)
         callback.message.map { message =>
           slotbookApiClient.listEmployeesByCompany(companyId.toInt).map { employees =>
-            replyOverriding(AskForEmployee(employees, prefixTag(EMPLOYEE_TAG)), message)
+            val rpl = AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))
+
+            reply(rpl.message, replyMarkup = rpl.markup)(message)
           }
         }
       case None => println("Employee was not selected")
@@ -143,7 +156,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
             slotbookApiClient.listSlots(stateService.current(callback.from.id).serviceId.get, stateService.current(callback.from.id).employeeId.get, date).map { slots =>
               if (slots.nonEmpty) {
                 val rpl = AskForSlot(slots, prefixTag(SLOT_TAG))
-                replyOverriding(rpl, message)
+                reply(rpl.message, replyMarkup = rpl.markup)(message)
               } else {
                 reply("There are no free slots on this date")(message)
               }
@@ -177,6 +190,15 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
       EditMessageReplyMarkup(Some(ChatId(message.source)),
         Some(message.messageId),
         replyMarkup = reply.markup.map(_.asInstanceOf[InlineKeyboardMarkup])))
+  }
+
+  def replyWithNew(rpl: Reply, message: Message): Future[Message] = {
+    reply(rpl.message, replyMarkup = rpl.markup)(message)
+  }
+
+  def language(message: Message): Lang = {
+    //Lang(message.from.flatMap(_.languageCode).getOrElse(Language.defaultLangCode))
+    message.from.map(_.id).flatMap(stateService.current.get(_).map(_.lang)).getOrElse(Lang.Default)
   }
 
   override def receiveMessage(msg: Message): Unit = {

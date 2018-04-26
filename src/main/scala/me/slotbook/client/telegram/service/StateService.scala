@@ -2,6 +2,7 @@ package me.slotbook.client.telegram.service
 
 import java.util.concurrent.ConcurrentHashMap
 
+import com.osinka.i18n.Lang
 import me.slotbook.client.telegram.model.State
 import me.slotbook.client.telegram.model.slotbook.Location
 
@@ -10,6 +11,10 @@ import scala.collection.mutable
 import scala.concurrent.Future
 
 case class StateService(current: mutable.Map[Int, State] = new ConcurrentHashMap[Int, State]().asScala) {
+  def updateLanguage(userId: Int, lang: Lang): Unit = {
+    this.update(userId, this.current.getOrElse(userId, State()).copy(lang = lang))
+  }
+
   def updateLocation(userId: Int, location: Option[Location]): Unit = {
     this.update(userId, this.current.getOrElse(userId, State()).copy(location = location))
   }

@@ -1,14 +1,11 @@
 package me.slotbook.client.telegram.model
 
+import com.osinka.i18n.{Lang, Messages}
 import info.mukel.telegrambot4s.models._
+import me.slotbook.client.telegram.model.Buttons.menuButton
 import me.slotbook.client.telegram.model.slotbook._
 
 sealed trait Reply {
-  val searchIcon = "\uD83D\uDD0E"
-  val languageIcon = "\uD83C\uDF10"
-  val helpIcon = "\uD83D\uDCE2"
-  val resetIcon = "❌"
-
   def buttonsFor(collection: Seq[(String, String)])(tagger: String => String): Seq[InlineKeyboardButton] = {
     collection.map(element => InlineKeyboardButton.callbackData(element._2, tagger.apply(element._1)))
   }
@@ -18,25 +15,58 @@ sealed trait Reply {
   def markup: Option[ReplyMarkup] = None
 }
 
+object Icons {
+  val searchIcon = "\uD83D\uDD0E"
+  val languageIcon = "\uD83C\uDF10"
+  val helpIcon = "\uD83D\uDCE2"
+  val resetIcon = "❌"
+  val menuIcon = "\uD83D\uDCDD"
+}
+
+object Tags {
+  val CATEGORY_TAG = "category_"
+  val SERVICE_TAG = "service_"
+  val COMPANY_TAG = "company_"
+  val EMPLOYEE_TAG = "employee_"
+  val SLOT_TAG = "slot_"
+  val DATE_TAG = "date_"
+  val MENU_TAG = "help_"
+  val LANGUAGE_TAG = "lang_"
+}
+
+case class I18nMessage(i18n: String, icon: String) {
+  def localizedMessage(lang: Lang): String = icon + " " + Messages(i18n)(lang)
+}
+
+object Buttons {
+
+  import me.slotbook.client.telegram.model.Icons._
+
+  def menuButton(prefixTagger: String => String): InlineKeyboardButton =
+    InlineKeyboardButton.callbackData(s"$menuIcon Menu", prefixTagger(Tags.MENU_TAG))
+}
+
 case class HelpReply() extends Reply {
   override def message: String = "Help information here"
 }
 
-case class AskForMenuAction(prefixTagger: String => String) extends Reply {
+case class AskForMenuAction(prefixTagger: String => String, implicit val lang: Lang) extends Reply {
+
   import me.slotbook.client.telegram.model.AskForMenuAction._
+  import me.slotbook.client.telegram.model.Icons._
 
   val messages = Map(
-    START_SEARCH_ACTION_ID -> s"$searchIcon Start search",
-    CHANGE_LANG_ID -> s"$languageIcon Change language",
-    HELP_ACTION_ID -> s"$helpIcon Help",
-    RESET_SEARCH_ACTION_ID -> s"$resetIcon Reset search")
+    START_SEARCH_ACTION_ID -> I18nMessage(searchIcon, "menu.search"),
+    CHANGE_LANG_ID -> I18nMessage(languageIcon, "menu.change.language"),
+    HELP_ACTION_ID -> I18nMessage(helpIcon, "menu.help"),
+    RESET_SEARCH_ACTION_ID -> I18nMessage(resetIcon, "menu.reset.search"))
 
   override def message: String = {
     messages.mkString("\n")
   }
 
   override def markup: Option[ReplyMarkup] = {
-    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(messages.toSeq.map(m => (m._1.toString, m._2)))(prefixTagger)))
+    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(messages.toSeq.map(m => (m._1.toString, m._2.localizedMessage(lang))))(prefixTagger)))
   }
 }
 
@@ -47,17 +77,22 @@ object AskForMenuAction {
   val RESET_SEARCH_ACTION_ID: Int = 3
 }
 
-
 case class AskForClientLocation() extends Reply {
   override def message: String = "Please send me your location"
 
   override def markup: Option[ReplyMarkup] = Some(ReplyKeyboardMarkup.singleButton(KeyboardButton.requestLocation(message)))
 }
 
-case class AskForNewLanguage() extends Reply {
-  override def message: String = "Please select your language"
+case class AskForNewLanguage(prefixTagger: String => String) extends Reply {
+  val messages: Map[String, String] = Map("en" -> "en", "ru" -> "ru", "ua" -> "ua")
 
-  override def markup: Option[ReplyMarkup] = Some(ReplyKeyboardMarkup.singleButton(KeyboardButton.text("language")))
+  override def message: String = "please.select.your.language"
+
+  override def markup: Option[ReplyMarkup] = {
+    val items = messages.toSeq.map(message => (message._1, message._2))
+
+    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(items)(prefixTagger)))
+  }
 
 }
 
@@ -67,8 +102,9 @@ case class AskForServiceCategory(categories: Seq[Service],
 
   override def markup: Option[ReplyMarkup] = {
     val ctgs = categories.map(c => (c.id.toString, c.name.toString))
+    val buttons = buttonsFor(ctgs)(prefixTagger) :+ menuButton(prefixTagger)
 
-    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(ctgs)(prefixTagger)))
+    Some(InlineKeyboardMarkup.singleColumn(buttons))
   }
 }
 
