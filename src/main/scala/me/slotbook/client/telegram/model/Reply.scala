@@ -34,7 +34,7 @@ object Tags {
   val LANGUAGE_TAG = "lang_"
 }
 
-case class I18nMessage(i18n: String, icon: String) {
+case class I18nMessage(icon: String, i18n: String) {
   def localizedMessage(lang: Lang): String = icon + " " + Messages(i18n)(lang)
 }
 
@@ -66,7 +66,8 @@ case class AskForMenuAction(prefixTagger: String => String, implicit val lang: L
   }
 
   override def markup: Option[ReplyMarkup] = {
-    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(messages.toSeq.map(m => (m._1.toString, m._2.localizedMessage(lang))))(prefixTagger)))
+    val msg = messages.toSeq.map(m => (m._1.toString, m._2.localizedMessage(lang)))
+    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(msg)(prefixTagger)))
   }
 }
 
@@ -156,5 +157,15 @@ case class AskForSlot(periods: Seq[Period], prefixTagger: String => String) exte
     val data = periods.map(p => (p.period.startTime.toString, p.period.startTime.toString))
 
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
+  }
+}
+
+case class EventCreated() extends Reply {
+  override def message: String = "Event has been created"
+}
+
+object Errors {
+  case class NoSlots() extends Reply {
+    override def message: String = "There are no free slots on this date"
   }
 }

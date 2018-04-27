@@ -1,3 +1,5 @@
 menu.help=Помощь
 menu.search=Поиск
+menu.change.language=Сменить язык
+menu.reset.search=Сбросить параметры поиска
 please.select.your.language=Выберите язык

@@ -1,3 +1,5 @@
 menu.help=Help
 menu.search=Start search
+menu.change.language=Change language
+menu.reset.search=Reset search
 please.select.your.language=Please select your language
