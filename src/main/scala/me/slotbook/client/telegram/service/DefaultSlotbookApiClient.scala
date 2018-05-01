@@ -2,10 +2,13 @@ package me.slotbook.client.telegram.service
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
+import com.osinka.i18n.Lang
 import com.typesafe.scalalogging.Logger
 import me.slotbook.client.telegram.model.slotbook._
 import play.api.libs.json.JsValue
+import play.api.libs.ws.DefaultWSCookie
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
+import play.libs.ws.WSCookie
 
 import scala.concurrent.Future
 
@@ -18,7 +21,7 @@ trait SlotbookApiClient {
     *
     * @return map of service id -> service name.
     */
-  def listCategories: Future[Seq[Service]]
+  def listCategories(lang: Lang): Future[Seq[Service]]
 
   def listCategoryServices(categoryId: Int): Future[Seq[ServiceWithCompaniesCount]]
 
@@ -38,6 +41,8 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
   import scala.concurrent.ExecutionContext.Implicits._
 
   val apiUrl = "http://127.0.0.1:9000/api"
+  val langCookies = "PLAY_LANG"
+
   implicit val system = ActorSystem()
 
   system.registerOnTermination {
@@ -52,10 +57,18 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     *
     * @return map of service id -> service name.
     */
-  def listCategories: Future[Seq[Service]] = {
-    wsClient.url(s"$apiUrl/categories").get().map { response =>
-      response.body[JsValue].validate[Seq[Service]].asOpt.getOrElse(Seq())
-    }
+  def listCategories(lang: Lang): Future[Seq[Service]] = {
+    wsClient.url(s"$apiUrl/categories")
+      .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
+      .get()
+      .map { response =>
+        if (response.status == 200) {
+          response.body[JsValue].validate[Seq[Service]].asOpt.getOrElse(Seq())
+        } else {
+          println(s"Unable to get categories $response")
+          Seq()
+        }
+      }
   }
 
   /**

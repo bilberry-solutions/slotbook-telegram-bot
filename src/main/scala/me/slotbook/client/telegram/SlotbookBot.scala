@@ -7,7 +7,7 @@ import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
-import me.slotbook.client.telegram.model.slotbook.Location
+import me.slotbook.client.telegram.model.slotbook.{Language, Location}
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
 import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
 import org.joda.time.LocalDate
@@ -36,7 +36,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
     callback.message.map { message =>
       callback.data.map(_.toInt) match {
         case Some(AskForMenuAction.START_SEARCH_ACTION_ID) =>
-          slotbookApiClient.listCategories.map { categories =>
+          slotbookApiClient.listCategories(language(message)).map { categories =>
             replyWithNew(AskForServiceCategory(categories, prefixTag(CATEGORY_TAG)), message)
           }
         case Some(AskForMenuAction.CHANGE_LANG_ID) =>
@@ -54,10 +54,10 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
     println(callback.data)
     callback.message match {
-      case Some(message) =>
+      case Some(message) if message.from.isDefined =>
         callback.data match {
           case Some(lang) =>
-            stateService.updateLanguage(callback.from.id, Lang(lang))
+            stateService.updateLanguage(message.from.get.id, Lang(lang))
             replyOverriding(AskForMenuAction(prefixTag(MENU_TAG), Lang(lang)), message)
           case None => reply("Unknown language specified")(message)
         }

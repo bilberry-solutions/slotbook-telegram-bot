@@ -7,3 +7,7 @@ object Language {
 
   val default = Lang(defaultLangCode)
 }
+
+case class Language(lang: Lang) {
+  def code: String = this.lang.locale.getLanguage
+}
