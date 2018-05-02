@@ -34,20 +34,20 @@ object Tags {
   val LANGUAGE_TAG = "lang_"
 }
 
-case class I18nMessage(icon: String, i18n: String) {
-  def localizedMessage(lang: Lang): String = icon + " " + Messages(i18n)(lang)
+case class I18nMessage(icon: Option[String] = None, i18n: String) {
+  def localizedMessage(lang: Lang): String = icon.getOrElse("") + " " + Messages(i18n)(lang)
 }
 
 object Buttons {
 
   import me.slotbook.client.telegram.model.Icons._
 
-  def menuButton(prefixTagger: String => String): InlineKeyboardButton =
-    InlineKeyboardButton.callbackData(s"$menuIcon Menu", prefixTagger(Tags.MENU_TAG))
+  def menuButton(prefixTagger: String => String)(implicit lang: Lang): InlineKeyboardButton =
+    InlineKeyboardButton.callbackData(I18nMessage(Some(menuIcon), "menu").localizedMessage(lang), prefixTagger(Tags.MENU_TAG))
 }
 
-case class HelpReply() extends Reply {
-  override def message: String = "Help information here"
+case class HelpReply(lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "help").localizedMessage(lang)
 }
 
 case class AskForMenuAction(prefixTagger: String => String, implicit val lang: Lang) extends Reply {
@@ -56,13 +56,13 @@ case class AskForMenuAction(prefixTagger: String => String, implicit val lang: L
   import me.slotbook.client.telegram.model.Icons._
 
   val messages = Map(
-    START_SEARCH_ACTION_ID -> I18nMessage(searchIcon, "menu.search"),
-    CHANGE_LANG_ID -> I18nMessage(languageIcon, "menu.change.language"),
-    HELP_ACTION_ID -> I18nMessage(helpIcon, "menu.help"),
-    RESET_SEARCH_ACTION_ID -> I18nMessage(resetIcon, "menu.reset.search"))
+    START_SEARCH_ACTION_ID -> I18nMessage(Some(searchIcon), "menu.search"),
+    CHANGE_LANG_ID -> I18nMessage(Some(languageIcon), "menu.change.language"),
+    HELP_ACTION_ID -> I18nMessage(Some(helpIcon), "menu.help"),
+    RESET_SEARCH_ACTION_ID -> I18nMessage(Some(resetIcon), "menu.reset.search"))
 
   override def message: String = {
-    messages.mkString("\n")
+    I18nMessage(i18n = "ask.for.menu.item").localizedMessage(lang)
   }
 
   override def markup: Option[ReplyMarkup] = {
@@ -78,28 +78,27 @@ object AskForMenuAction {
   val RESET_SEARCH_ACTION_ID: Int = 3
 }
 
-case class AskForClientLocation() extends Reply {
-  override def message: String = "Please send me your location"
+case class AskForClientLocation(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.client.location").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = Some(ReplyKeyboardMarkup.singleButton(KeyboardButton.requestLocation(message)))
 }
 
-case class AskForNewLanguage(prefixTagger: String => String) extends Reply {
+case class AskForNewLanguage(prefixTagger: String => String)(implicit lang: Lang) extends Reply {
   val messages: Map[String, String] = Map("en" -> "en", "ru" -> "ru", "ua" -> "ua")
 
-  override def message: String = "please.select.your.language"
+  override def message: String = I18nMessage(i18n = "ask.for.client.language").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
     val items = messages.toSeq.map(message => (message._1, message._2))
 
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(items)(prefixTagger)))
   }
-
 }
 
 case class AskForServiceCategory(categories: Seq[Service],
-                                 prefixTagger: String => String) extends Reply {
-  override def message: String = "Please choose service category"
+                                 prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.service.category").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
     val ctgs = categories.map(c => (c.id.toString, c.name.toString))
@@ -110,8 +109,8 @@ case class AskForServiceCategory(categories: Seq[Service],
 }
 
 case class AskForClientService(services: Seq[ServiceWithCompaniesCount],
-                               prefixTagger: String => String) extends Reply {
-  override def message: String = "Please choose service"
+                               prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.service").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
     val servs = services.map(c => (c.service.id.toString, s"${c.service.name}"))
@@ -121,8 +120,8 @@ case class AskForClientService(services: Seq[ServiceWithCompaniesCount],
 }
 
 case class AskForCompany(companies: Seq[CompanyDistanceRating],
-                         prefixTagger: String => String) extends Reply {
-  override def message: String = "Please choose company"
+                         prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.company").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
     val comps = companies.map(c => (c.company.id.toString, c.company.name))
@@ -132,8 +131,8 @@ case class AskForCompany(companies: Seq[CompanyDistanceRating],
 }
 
 case class AskForEmployee(employees: Seq[UserWithRating],
-                          prefixTagger: String => String) extends Reply {
-  override def message: String = "Please choose employee"
+                          prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.employee").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
     val comps = employees.map(e => (e.user.id, s"${e.user.firstName} ${e.user.lastName}"))
@@ -142,16 +141,16 @@ case class AskForEmployee(employees: Seq[UserWithRating],
   }
 }
 
-case class AskForDates(dates: Seq[(String, String)], prefixTagger: String => String) extends Reply {
-  override def message: String = "Please choose a date"
+case class AskForDates(dates: Seq[(String, String)], prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.date").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(dates)(prefixTagger)))
   }
 }
 
-case class AskForSlot(periods: Seq[Period], prefixTagger: String => String) extends Reply {
-  override def message: String = "Please choose a timeslot"
+case class AskForSlot(periods: Seq[Period], prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.time").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
     val data = periods.map(p => (p.period.startTime.toString, p.period.startTime.toString))
@@ -160,12 +159,14 @@ case class AskForSlot(periods: Seq[Period], prefixTagger: String => String) exte
   }
 }
 
-case class EventCreated() extends Reply {
-  override def message: String = "Event has been created"
+case class EventCreated(lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "event.created").localizedMessage(lang)
 }
 
 object Errors {
-  case class NoSlots() extends Reply {
-    override def message: String = "There are no free slots on this date"
+
+  case class NoSlots(lang: Lang) extends Reply {
+    override def message: String = I18nMessage(i18n = "no.free.slots").localizedMessage(lang)
   }
+
 }
