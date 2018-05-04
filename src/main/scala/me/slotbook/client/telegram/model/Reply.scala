@@ -78,7 +78,7 @@ object AskForMenuAction {
   val RESET_SEARCH_ACTION_ID: Int = 3
 }
 
-case class AskForClientLocation(implicit lang: Lang) extends Reply {
+case class AskForClientLocation(lang: Lang) extends Reply {
   override def message: String = I18nMessage(i18n = "ask.for.client.location").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = Some(ReplyKeyboardMarkup.singleButton(KeyboardButton.requestLocation(message)))

@@ -1,13 +1,15 @@
 package me.slotbook.client.telegram.service
 
+import play.api.libs.json._
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.osinka.i18n.Lang
 import com.typesafe.scalalogging.Logger
+import me.slotbook.client.telegram.model.UserData
 import me.slotbook.client.telegram.model.slotbook._
-import play.api.libs.json.JsValue
 import play.api.libs.ws.DefaultWSCookie
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
+import play.api.libs.ws.JsonBodyWritables._
 
 import scala.concurrent.Future
 
@@ -30,7 +32,7 @@ trait SlotbookApiClient {
 
   def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]]
 
-  def bindSlot(slotId: Timeslot.ID)(implicit lang: Lang): Future[Unit]
+  def bindSlot(slotId: Timeslot.ID, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
 }
 
 class DefaultSlotbookApiClient extends SlotbookApiClient {
@@ -142,7 +144,19 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       }
   }
 
-  override def bindSlot(slotId: Timeslot.ID)(implicit lang: Lang): Future[Unit] = {
+  override def bindSlot(slotId: Timeslot.ID, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit] = {
+    // first we need to create a new account for the user
+    wsClient.url(s"$apiUrl/auth/account/create")
+      .addHttpHeaders("Content-Type" -> "application/json")
+      .post(UserData.of(user).toJson).map { response =>
+      println(response)
+
+      // extracting token from response
+      response.body[JsValue].validate[(String, String)].asOpt match {
+        case Some(t) => println(s"token: $t")
+        case None => println("Unable to register a user")
+      }
+    }
     Future.successful()
   }
 }

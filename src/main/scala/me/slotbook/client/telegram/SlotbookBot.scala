@@ -7,10 +7,10 @@ import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
-import me.slotbook.client.telegram.model.slotbook.{Language, Location}
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
+import me.slotbook.client.telegram.model.slotbook.{Language, Location}
 import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
-import org.joda.time.{DateTime, LocalDate}
+import org.joda.time.LocalDate
 
 import scala.concurrent.Future
 
@@ -23,20 +23,34 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
     replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), languageOf(msg)), msg)
   }
 
-  onMessage { implicit msg =>
-    if (msg.location.isDefined && msg.from.isDefined) {
-      val loc = msg.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
-      stateService.updateLocation(msg.from.get.id, loc)
+  onMessage { implicit message =>
+    if (message.location.isDefined && message.from.isDefined) {
+      val loc = message.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
+      val language = languageOf(message)
+      val state = stateOf(message.chat.id.toInt)
+
+      stateService.updateLocation(message.chat.id.toInt, loc)
+
+      /*slotbookApiClient.listCategories(language).map { categories =>
+        replyWithNew(AskForServiceCategory(categories, prefixTag(CATEGORY_TAG))(language), message)
+      }*/
+      state match {
+        case Some(currentState) if currentState.serviceId.isDefined =>
+          slotbookApiClient.listCompaniesByService(currentState.serviceId.get, loc)(language).map { companies =>
+            replyWithNew(AskForCompany(companies, prefixTag(COMPANY_TAG))(language), message)
+          }
+        case None => println("Unable to extract current state or service was not selected")
+      }
     }
   }
 
   onCallbackWithTag(MENU_TAG) { implicit callback =>
-    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
+    val language = languageOf(callback)
+
+    ackCallback(text = Some(Messages("accepted.please.wait")(language)))
 
     callback.message match {
       case Some(message) if message.from.isDefined =>
-        val language = languageOf(message)
-
         callback.data.map(_.toInt) match {
           case Some(AskForMenuAction.START_SEARCH_ACTION_ID) =>
             slotbookApiClient.listCategories(language).map { categories =>
@@ -47,19 +61,21 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
           case Some(AskForMenuAction.HELP_ACTION_ID) =>
             replyWithNew(HelpReply(language), message)
           case Some(AskForMenuAction.RESET_SEARCH_ACTION_ID) =>
-            stateService.reset(callback.from.id).map(_ => reply("Search reset successful")(message))
+            stateService.reset(callback.from.id).map(_ =>
+              replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), language), message))
         }
+      case None => println("Unable to define <from> of the message")
     }
   }
 
   onCallbackWithTag(LANGUAGE_TAG) { implicit callback =>
-    ackCallback(text = Some("Language has been changed"))
+    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.message match {
       case Some(message) if message.from.isDefined =>
         callback.data match {
           case Some(lang) =>
-            stateService.updateLanguage(message.from.get.id, Lang(lang))
+            stateService.updateLanguage(callback.from.id, Lang(lang))
             replyOverriding(AskForMenuAction(prefixTag(MENU_TAG), Lang(lang)), message)
           case None => reply("Unknown language specified")(message)
         }
@@ -68,18 +84,19 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   }
 
   onCallbackWithTag(CATEGORY_TAG) { implicit callback =>
-    ackCallback(text = Some("Category has been accepted"))
+    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.data match {
       case Some(categoryId) =>
         callback.message match {
           case Some(message) if message.from.isDefined =>
-            val language = languageOf(message)
+            val language = languageOf(callback)
 
-            stateService.updateCategory(message.from.get.id, categoryId.toInt)
+            stateService.updateCategory(callback.from.id, categoryId.toInt)
             slotbookApiClient.listCategoryServices(categoryId.toInt)(language).map { services =>
               replyWithNew(AskForClientService(services, prefixTag(SERVICE_TAG))(language), message)
             }
+          case None => println("Unable to extract message from callback")
         }
 
       case None => println("Category was not selected")
@@ -88,19 +105,21 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   /* Handling service selection */
   onCallbackWithTag(SERVICE_TAG) { implicit callback =>
-    ackCallback(text = Some("Service has been accepted Сейчас что-нибудь подыщем"))
+    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.data match {
       case Some(serviceId) =>
-        stateService.updateService(callback.message.get.from.get.id, serviceId.toInt)
+        stateService.updateService(callback.from.id, serviceId.toInt)
         callback.message match {
           case Some(message) if message.from.isDefined =>
-            val language = languageOf(message)
+            val language = languageOf(callback)
 
-            slotbookApiClient.listCompaniesByService(serviceId.toInt,
+            /*slotbookApiClient.listCompaniesByService(serviceId.toInt,
               stateService.current(callback.message.get.from.get.id).location)(language).map { companies =>
               replyWithNew(AskForCompany(companies, prefixTag(COMPANY_TAG))(language), message)
-            }
+            }*/
+            replyWithNew(AskForClientLocation(language), message)
+          case None => println("Unable to extract message from callback")
         }
       case None => println("Service was not selected")
     }
@@ -108,18 +127,20 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   /* Handling company selection */
   onCallbackWithTag(COMPANY_TAG) { implicit callback =>
-    ackCallback(text = Some("Company has been accepted."))
+    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.data match {
       case Some(companyId) =>
-        stateService.updateCompany(callback.message.get.from.get.id, companyId.toInt)
         callback.message match {
           case Some(message) if message.from.isDefined =>
-            val language = languageOf(message)
+            stateService.updateCompany(callback.from.id, companyId.toInt)
+
+            val language = languageOf(callback)
 
             slotbookApiClient.listEmployeesByCompany(companyId.toInt)(language).map { employees =>
               replyWithNew(AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))(language), message)
             }
+          case None => println("Unable to extract message from callback")
         }
       case None => println("Employee was not selected")
     }
@@ -127,23 +148,23 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   /* Handling company selection */
   onCallbackWithTag(EMPLOYEE_TAG) { implicit callback =>
-    ackCallback(text = Some("Employee has been accepted"))
+    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.data match {
-      case Some(employeeId) if callback.message.isDefined && callback.message.get.from.isDefined =>
-        stateService.updateEmployee(callback.message.get.from.get.id, employeeId)
+      case Some(employeeId) =>
+        stateService.updateEmployee(callback.from.id, employeeId)
 
         callback.message match {
           case Some(message) if message.from.isDefined =>
             val dates = 1.to(3)
               .map(LocalDate.now.toDateTimeAtStartOfDay.plusDays(_))
               .map(d => (dateTimeFormatter.print(d), dateFormatter.print(d)))
-              .toSeq
 
             // TODO check why api returns slots in the past
             val rpl = AskForDates(dates, prefixTag(DATE_TAG))(languageOf(message))
 
             replyWithNew(rpl, message)
+          case None => println("Unable to extract message from callback")
         }
 
       case None => println("Date was not selected")
@@ -151,14 +172,14 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   }
 
   onCallbackWithTag(DATE_TAG) { implicit callback =>
-    ackCallback(text = Some("Date has been accepted"))
+    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.data match {
       case Some(date) =>
         callback.message match {
           case Some(message) if message.from.isDefined =>
-            val language: Lang = languageOf(message)
-            val currentState = stateService.current(message.from.get.id)
+            val language = languageOf(callback)
+            val currentState = stateService.current(callback.from.id)
 
             if (currentState.serviceId.isDefined && currentState.employeeId.isDefined) {
               slotbookApiClient.listSlots(currentState.serviceId.get, currentState.employeeId.get, date)(language).map { slots =>
@@ -171,13 +192,14 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
             } else {
               reply("Please select a service and employee to register a visit")(message)
             }
+          case None => println("Unable to extract message from callback")
         }
       case None => println("Timeslot was not selected")
     }
   }
 
   onCallbackWithTag(SLOT_TAG) { implicit callback =>
-    ackCallback(text = Some("Slot has been accepted"))
+    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.data match {
       case Some(slotId) =>
@@ -185,10 +207,12 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
         callback.message match {
           case Some(message) if message.from.isDefined =>
-            val language = languageOf(message)
-            slotbookApiClient.bindSlot(slotId.toInt)(languageOf(message)).map { slots =>
+            val language = languageOf(callback)
+
+            slotbookApiClient.bindSlot(slotId.toInt, callback.from)(languageOf(message)).map { slots =>
               replyWithNew(EventCreated(language), message)
             }
+          case None => println("Unable to extract message from callback")
         }
       case None => println("Slot was not selected")
     }
@@ -210,9 +234,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   }
 
   def languageOf(callback: CallbackQuery): Lang =
-    callback.message.flatMap(_.from)
-      .flatMap(user => stateOf(user.id).map(_.lang))
-      .getOrElse(Language.default)
+    stateOf(callback.from.id).map(_.lang).getOrElse(Lang.Default)
 
   def stateOf(userId: Int): Option[State] = stateService.current.get(userId)
 

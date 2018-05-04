@@ -10,4 +10,4 @@ case class State(userId: Option[Int] = None,
                  employeeId: Option[User.ID] = None,
                  location: Option[Location] = None,
                  slotId: Option[String] = None,
-                 lang: Lang = Language.default)
+                 lang: Lang = Lang.Default)

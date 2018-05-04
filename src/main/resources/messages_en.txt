@@ -15,5 +15,6 @@ ask.for.date=Please choose a date of your visit
 ask.for.time=What time will be most convenient for you?
 event.created=Event has been send for approval. Please wait a message back from the company
 no.free.slots=Unfortunately I can't find any slots for the given date
+accepted=Roger that!
 menu=Menu
 help=Help
