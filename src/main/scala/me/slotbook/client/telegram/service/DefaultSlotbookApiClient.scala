@@ -7,6 +7,7 @@ import com.osinka.i18n.Lang
 import com.typesafe.scalalogging.Logger
 import me.slotbook.client.telegram.model.UserData
 import me.slotbook.client.telegram.model.slotbook._
+import me.slotbook.client.telegram.service.CompaniesSearchParameters.{defaultSearchCount, defaultSearchDistance}
 import play.api.libs.ws.DefaultWSCookie
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.libs.ws.JsonBodyWritables._
@@ -26,13 +27,19 @@ trait SlotbookApiClient {
 
   def listCategoryServices(categoryId: Int)(implicit lang: Lang): Future[Seq[ServiceWithCompaniesCount]]
 
-  def listCompaniesByService(serviceId: Service.ID, location: Option[Location])(implicit lang: Lang): Future[Seq[CompanyDistanceRating]]
+  def listCompaniesByService(serviceId: Service.ID, location: Option[Location], searchRadius: Option[Int])(implicit lang: Lang): Future[Seq[CompanyDistanceRating]]
 
   def listEmployeesByCompany(companyId: Company.ID)(implicit lang: Lang): Future[Seq[UserWithRating]]
 
   def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]]
 
   def bindSlot(slotId: Timeslot.ID, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
+}
+
+object CompaniesSearchParameters {
+  val defaultSearchDistance = 20
+  // distance in kilometers
+  val defaultSearchCount = 100 // limit companies to search
 }
 
 class DefaultSlotbookApiClient extends SlotbookApiClient {
@@ -43,15 +50,13 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
 
   val apiUrl = "http://127.0.0.1:9000/api"
   val langCookies = "PLAY_LANG"
-  val defaultSearchDistance = 20
-  // distance in kilometers
-  val defaultSearchCount = 100 // limit companies to search
 
   implicit val system = ActorSystem()
 
   system.registerOnTermination {
     System.exit(0)
   }
+
   implicit val materializer: ActorMaterializer = ActorMaterializer()
 
   val wsClient = StandaloneAhcWSClient()
@@ -98,11 +103,16 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     * @param location  location to filter.
     * @return
     */
-  override def listCompaniesByService(serviceId: Service.ID, location: Option[Location])(implicit lang: Lang): Future[Seq[CompanyDistanceRating]] = {
-    val url = location.map {
-      loc =>
-        wsClient.url(s"$apiUrl/services/$serviceId/companies/location")
-          .withQueryStringParameters("lat" -> loc.lat.toString(), "lng" -> loc.lng.toString(), "distance" -> defaultSearchDistance.toString, "limit" -> defaultSearchCount.toString)
+  override def listCompaniesByService(serviceId: Service.ID,
+                                      location: Option[Location],
+                                      searchRadius: Option[Int] = Some(defaultSearchDistance))
+                                     (implicit lang: Lang): Future[Seq[CompanyDistanceRating]] = {
+    val url = location.map { loc =>
+      wsClient.url(s"$apiUrl/services/$serviceId/companies/location")
+        .withQueryStringParameters("lat" -> loc.lat.toString(),
+          "lng" -> loc.lng.toString(),
+          "distance" -> searchRadius.toString,
+          "limit" -> defaultSearchCount.toString)
     }.getOrElse {
       wsClient.url(s"$apiUrl/services/$serviceId/companies")
     }
@@ -112,7 +122,12 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     url.addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
       .get()
       .map { response =>
-        response.body[JsValue].validate[Seq[CompanyDistanceRating]].asOpt.getOrElse(Seq())
+        if (response.status != 200) {
+          println(s"Error while executing request ${response.statusText}")
+          Seq()
+        } else {
+          response.body[JsValue].validate[Seq[CompanyDistanceRating]].asOpt.getOrElse(Seq())
+        }
       }
   }
 

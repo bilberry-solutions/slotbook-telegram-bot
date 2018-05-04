@@ -8,8 +8,9 @@ import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
-import me.slotbook.client.telegram.model.slotbook.{Language, Location}
-import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
+import me.slotbook.client.telegram.model.slotbook.Location
+import me.slotbook.client.telegram.service.CompaniesSearchParameters.defaultSearchDistance
+import me.slotbook.client.telegram.service.{CompaniesSearchParameters, DefaultSlotbookApiClient, StateService}
 import org.joda.time.LocalDate
 
 import scala.concurrent.Future
@@ -21,27 +22,6 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   onCommand('menu) { implicit msg =>
     replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), languageOf(msg)), msg)
-  }
-
-  onMessage { implicit message =>
-    if (message.location.isDefined && message.from.isDefined) {
-      val loc = message.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
-      val language = languageOf(message)
-      val state = stateOf(message.chat.id.toInt)
-
-      stateService.updateLocation(message.chat.id.toInt, loc)
-
-      /*slotbookApiClient.listCategories(language).map { categories =>
-        replyWithNew(AskForServiceCategory(categories, prefixTag(CATEGORY_TAG))(language), message)
-      }*/
-      state match {
-        case Some(currentState) if currentState.serviceId.isDefined =>
-          slotbookApiClient.listCompaniesByService(currentState.serviceId.get, loc)(language).map { companies =>
-            replyWithNew(AskForCompany(companies, prefixTag(COMPANY_TAG))(language), message)
-          }
-        case None => println("Unable to extract current state or service was not selected")
-      }
-    }
   }
 
   onCallbackWithTag(MENU_TAG) { implicit callback =>
@@ -122,6 +102,24 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
           case None => println("Unable to extract message from callback")
         }
       case None => println("Service was not selected")
+    }
+  }
+
+  onMessage { implicit message =>
+    if (message.location.isDefined && message.from.isDefined) {
+      val loc = message.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
+      val language = languageOf(message)
+      val state = stateOf(message.chat.id.toInt)
+
+      stateService.updateLocation(message.chat.id.toInt, loc)
+
+      state match {
+        case Some(currentState) if currentState.serviceId.isDefined =>
+          slotbookApiClient.listCompaniesByService(currentState.serviceId.get, None, Some(defaultSearchDistance))(language).map { companies =>
+            replyWithNew(AskForCompany(defaultSearchDistance, companies, prefixTag(COMPANY_TAG))(language), message)
+          }
+        case None => println("Unable to extract current state or service was not selected")
+      }
     }
   }
 

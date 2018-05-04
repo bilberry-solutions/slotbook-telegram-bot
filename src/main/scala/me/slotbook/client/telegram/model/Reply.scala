@@ -35,7 +35,7 @@ object Tags {
 }
 
 case class I18nMessage(icon: Option[String] = None, i18n: String) {
-  def localizedMessage(lang: Lang): String = icon.getOrElse("") + " " + Messages(i18n)(lang)
+  def localizedMessage(lang: Lang, args: Any*): String = icon.getOrElse("") + " " + Messages(i18n, args)(lang)
 }
 
 object Buttons {
@@ -119,14 +119,21 @@ case class AskForClientService(services: Seq[ServiceWithCompaniesCount],
   }
 }
 
-case class AskForCompany(companies: Seq[CompanyDistanceRating],
+case class AskForCompany(searchRadius: Int,
+                         companies: Seq[CompanyDistanceRating],
                          prefixTagger: String => String)(implicit lang: Lang) extends Reply {
-  override def message: String = I18nMessage(i18n = "ask.for.company").localizedMessage(lang)
+  override def message: String = if (companies.nonEmpty) {
+    I18nMessage(i18n = "ask.for.company").localizedMessage(lang, searchRadius)
+  } else {
+    I18nMessage(i18n = "no.companies.found").localizedMessage(lang)
+  }
 
-  override def markup: Option[ReplyMarkup] = {
+  override def markup: Option[ReplyMarkup] = if (companies.nonEmpty) {
     val comps = companies.map(c => (c.company.id.toString, c.company.name))
 
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(comps)(prefixTagger)))
+  } else {
+    Some(InlineKeyboardMarkup.singleButton(menuButton(prefixTagger)))
   }
 }
 
