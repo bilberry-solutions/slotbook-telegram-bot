@@ -10,7 +10,7 @@ case class Timeslot(startDate: String, endDate: String, startTime: String, endTi
 case class DateWithTimeslot(date: String, periods: Seq[Period])
 
 object Timeslot {
-  type ID = Int
+  type Time = String
 
   val dateTimeFormatPattern = "dd-MM-yyyy-HH-mm"
   val dateFormatPattern = "dd-MM-yyyy"

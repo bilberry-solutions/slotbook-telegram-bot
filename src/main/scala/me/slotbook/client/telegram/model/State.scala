@@ -9,5 +9,5 @@ case class State(userId: Option[Int] = None,
                  companyId: Option[Company.ID] = None,
                  employeeId: Option[User.ID] = None,
                  location: Option[Location] = None,
-                 slotId: Option[String] = None,
+                 timeSlot: Option[String] = None,
                  lang: Lang = Lang.Default)

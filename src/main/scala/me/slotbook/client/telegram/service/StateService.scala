@@ -35,8 +35,8 @@ case class StateService(current: mutable.Map[Int, State] = new ConcurrentHashMap
     this.update(userId, this.current.getOrElse(userId, State()).copy(employeeId = Some(employeeId)))
   }
 
-  def updateSlot(userId: Int, slotId: String): Unit = {
-    this.update(userId, this.current.getOrElse(userId, State()).copy(slotId = Some(slotId)))
+  def updateSlot(userId: Int, timeSlot: String): Unit = {
+    this.update(userId, this.current.getOrElse(userId, State()).copy(timeSlot = Some(timeSlot)))
   }
 
   private def update(userId: Int, state: State): Unit = {

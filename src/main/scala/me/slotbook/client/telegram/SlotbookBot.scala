@@ -20,7 +20,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   val slotbookApiClient: DefaultSlotbookApiClient = new DefaultSlotbookApiClient()
   val stateService = StateService()
 
-  onCommand('menu) { implicit msg =>
+  onCommand('menu, 'start) { implicit msg =>
     replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), languageOf(msg)), msg)
   }
 
@@ -159,7 +159,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
               .map(d => (dateTimeFormatter.print(d), dateFormatter.print(d)))
 
             // TODO check why api returns slots in the past
-            val rpl = AskForDates(dates, prefixTag(DATE_TAG))(languageOf(message))
+            val rpl = AskForDates(dates, prefixTag(DATE_TAG))(languageOf(callback))
 
             replyWithNew(rpl, message)
           case None => println("Unable to extract message from callback")
@@ -200,14 +200,14 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
     ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
 
     callback.data match {
-      case Some(slotId) =>
-        stateService.updateEmployee(callback.from.id, slotId)
+      case Some(timeSlot) =>
+        stateService.updateSlot(callback.from.id, timeSlot)
 
         callback.message match {
           case Some(message) if message.from.isDefined =>
             val language = languageOf(callback)
 
-            slotbookApiClient.bindSlot(slotId.toInt, callback.from)(languageOf(message)).map { slots =>
+            slotbookApiClient.bindSlot(timeSlot, callback.from)(languageOf(callback)).map { slots =>
               replyWithNew(EventCreated(language), message)
             }
           case None => println("Unable to extract message from callback")

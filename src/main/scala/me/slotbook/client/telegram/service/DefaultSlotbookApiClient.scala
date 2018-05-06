@@ -33,7 +33,7 @@ trait SlotbookApiClient {
 
   def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]]
 
-  def bindSlot(slotId: Timeslot.ID, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
+  def bindSlot(slotId: Timeslot.Time, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
 }
 
 object CompaniesSearchParameters {
@@ -71,6 +71,7 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
       .get()
       .map { response =>
+        println(response)
         if (response.status == 200) {
           response.body[JsValue].validate[Seq[Service]].asOpt.getOrElse(Seq())
         } else {
@@ -159,7 +160,7 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       }
   }
 
-  override def bindSlot(slotId: Timeslot.ID, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit] = {
+  override def bindSlot(timeSlot: Timeslot.Time, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit] = {
     // first we need to create a new account for the user
     wsClient.url(s"$apiUrl/auth/account/create")
       .addHttpHeaders("Content-Type" -> "application/json")
