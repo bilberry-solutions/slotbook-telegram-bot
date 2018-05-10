@@ -94,10 +94,6 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
           case Some(message) if message.from.isDefined =>
             val language = languageOf(callback)
 
-            /*slotbookApiClient.listCompaniesByService(serviceId.toInt,
-              stateService.current(callback.message.get.from.get.id).location)(language).map { companies =>
-              replyWithNew(AskForCompany(companies, prefixTag(COMPANY_TAG))(language), message)
-            }*/
             replyWithNew(AskForClientLocation(language), message)
           case None => println("Unable to extract message from callback")
         }
