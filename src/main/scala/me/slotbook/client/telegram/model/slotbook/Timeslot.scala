@@ -9,6 +9,8 @@ case class Timeslot(startDate: String, endDate: String, startTime: String, endTi
 
 case class DateWithTimeslot(date: String, periods: Seq[Period])
 
+case class PeriodWithUser(period: Period, userWithRating: UserWithRating)
+
 object Timeslot {
   type Time = String
 
@@ -27,4 +29,8 @@ object DateWithTimeslot {
 
 object Period {
   implicit val format: Format[Period] = Json.format[Period]
+}
+
+object PeriodWithUser {
+  implicit val format: Format[PeriodWithUser] = Json.format[PeriodWithUser]
 }

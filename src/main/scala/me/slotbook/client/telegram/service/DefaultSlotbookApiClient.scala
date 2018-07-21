@@ -5,14 +5,14 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import com.osinka.i18n.Lang
 import com.typesafe.scalalogging.Logger
-import me.slotbook.client.telegram.model.UserData
-import me.slotbook.client.telegram.model.slotbook._
+import me.slotbook.client.telegram.model.slotbook.{UserData, _}
 import me.slotbook.client.telegram.service.CompaniesSearchParameters.{defaultSearchCount, defaultSearchDistance}
 import play.api.libs.ws.DefaultWSCookie
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.libs.ws.JsonBodyWritables._
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success, Try}
 
 trait SlotbookApiClient {
   type Lat = BigDecimal
@@ -34,6 +34,10 @@ trait SlotbookApiClient {
   def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]]
 
   def bindSlot(slotId: Timeslot.Time, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
+
+  def getHistoryOfVisits(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]]
+
+  def calendar(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]]
 }
 
 object CompaniesSearchParameters {
@@ -72,6 +76,7 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       .get()
       .map { response =>
         println(response)
+
         if (response.status == 200) {
           response.body[JsValue].validate[Seq[Service]].asOpt.getOrElse(Seq())
         } else {
@@ -169,10 +174,42 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
 
       // extracting token from response
       response.body[JsValue].validate[(String, String)].asOpt match {
-        case Some(t) => println(s"token: $t")
+        case Some((status, token)) =>
+          // put the token into the map
+          println(s"token: $token")
         case None => println("Unable to register a user")
       }
     }
+
     Future.successful()
+  }
+
+  override def getHistoryOfVisits(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]] = {
+    login(user).map { token =>
+      wsClient.url(s"$apiUrl/event/history/")
+        .addHttpHeaders("Authorization" -> s"token $token")
+        .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
+        .get().map { response =>
+        println(response)
+      }
+    }.recover {
+      case e: RuntimeException => println(e.getMessage)
+    }
+
+    Future.successful(Seq())
+  }
+
+  override def calendar(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]] = ???
+
+  private def login(user: info.mukel.telegrambot4s.models.User): Future[Try[String]] = {
+    wsClient.url(s"$apiUrl/api/auth/login")
+      .post(UserLoginData.of(user).toJson).map { response =>
+      println(response)
+
+      response.body[JsValue].validate[(String, String)].asOpt match {
+        case Some((result, token)) => Success(token)
+        case None => Failure(new RuntimeException(s"Unable to login under user $user"))
+      }
+    }
   }
 }

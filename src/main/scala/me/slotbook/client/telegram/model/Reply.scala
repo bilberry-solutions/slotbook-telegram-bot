@@ -21,6 +21,8 @@ object Icons {
   val helpIcon = "\uD83D\uDCE2"
   val resetIcon = "❌"
   val menuIcon = "\uD83D\uDCDD"
+  val calendarIcon = "\uD83D\uDCC5"
+  val historyIcon = "\uD83D\uDCCB"
 }
 
 object Tags {
@@ -58,8 +60,11 @@ case class AskForMenuAction(prefixTagger: String => String, implicit val lang: L
   val messages = Map(
     START_SEARCH_ACTION_ID -> I18nMessage(Some(searchIcon), "menu.search"),
     CHANGE_LANG_ID -> I18nMessage(Some(languageIcon), "menu.change.language"),
+    CALENDAR -> I18nMessage(Some(calendarIcon), "menu.calendar"),
+    HISTORY -> I18nMessage(Some(historyIcon), "menu.history"),
     HELP_ACTION_ID -> I18nMessage(Some(helpIcon), "menu.help"),
-    RESET_SEARCH_ACTION_ID -> I18nMessage(Some(resetIcon), "menu.reset.search"))
+    RESET_SEARCH_ACTION_ID -> I18nMessage(Some(resetIcon), "menu.reset.search")
+  )
 
   override def message: String = {
     I18nMessage(i18n = "ask.for.menu.item").localizedMessage(lang)
@@ -76,6 +81,8 @@ object AskForMenuAction {
   val CHANGE_LANG_ID: Int = 1
   val HELP_ACTION_ID: Int = 2
   val RESET_SEARCH_ACTION_ID: Int = 3
+  val CALENDAR = 4
+  val HISTORY = 5
 }
 
 case class AskForClientLocation(lang: Lang) extends Reply {
