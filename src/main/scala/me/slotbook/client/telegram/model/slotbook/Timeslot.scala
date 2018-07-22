@@ -3,7 +3,7 @@ package me.slotbook.client.telegram.model.slotbook
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import play.api.libs.json.{Format, Json}
 
-case class Period(period: Timeslot)
+case class Period(timeslot: Timeslot)
 
 case class Timeslot(startDate: String, endDate: String, startTime: String, endTime: String)
 

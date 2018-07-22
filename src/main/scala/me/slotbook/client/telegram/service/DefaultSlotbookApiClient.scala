@@ -10,6 +10,7 @@ import me.slotbook.client.telegram.service.CompaniesSearchParameters.{defaultSea
 import play.api.libs.ws.DefaultWSCookie
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.libs.ws.JsonBodyWritables._
+import play.shaded.ahc.org.asynchttpclient.util.HttpConstants.ResponseStatusCodes
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
@@ -29,7 +30,7 @@ trait SlotbookApiClient {
 
   def listCompaniesByService(serviceId: Service.ID, location: Option[Location], searchRadius: Option[Int])(implicit lang: Lang): Future[Seq[CompanyDistanceRating]]
 
-  def listEmployeesByCompany(companyId: Company.ID)(implicit lang: Lang): Future[Seq[UserWithRating]]
+  def listEmployeesByCompany(companyId: Company.ID, serviceId: Service.ID)(implicit lang: Lang): Future[Seq[UserWithRating]]
 
   def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]]
 
@@ -143,13 +144,14 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     * @param companyId id of the company
     * @return
     */
-  override def listEmployeesByCompany(companyId: Company.ID)(implicit lang: Lang): Future[Seq[UserWithRating]] = {
+  override def listEmployeesByCompany(companyId: Company.ID, serviceId: Service.ID)(implicit lang: Lang): Future[Seq[UserWithRating]] = {
     wsClient
-      .url(s"$apiUrl/companies/$companyId/employees")
+      .url(s"$apiUrl/services/$serviceId/companies/$companyId/employees")
       .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
-      .get().map { response =>
-      response.body[JsValue].validate[Seq[UserWithRating]].asOpt.getOrElse(Seq())
-    }
+      .get()
+      .map { response =>
+        response.body[JsValue].validate[Seq[UserWithRating]].asOpt.getOrElse(Seq())
+      }
   }
 
   override def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]] = {
@@ -158,9 +160,11 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
       .get()
       .map { response =>
-        response.body[JsValue].validate[Seq[DateWithTimeslot]].asOpt match {
-          case Some(Seq(data)) => data.periods
-          case None => Seq()
+        if (response.status == ResponseStatusCodes.OK_200) {
+          response.body[JsValue].validate[Seq[DateWithTimeslot]].asOpt.get.flatMap(_.periods)
+        } else {
+          println(s"Error while requesting list of slots, response: [$response]")
+          Seq()
         }
       }
   }
@@ -202,13 +206,17 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
   override def calendar(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]] = ???
 
   private def login(user: info.mukel.telegrambot4s.models.User): Future[Try[String]] = {
-    wsClient.url(s"$apiUrl/api/auth/login")
+    wsClient.url(s"$apiUrl/auth/login")
       .post(UserLoginData.of(user).toJson).map { response =>
       println(response)
 
-      response.body[JsValue].validate[(String, String)].asOpt match {
-        case Some((result, token)) => Success(token)
-        case None => Failure(new RuntimeException(s"Unable to login under user $user"))
+      if (response.status == ResponseStatusCodes.OK_200) {
+        response.body[JsValue].validate[(String, String)].asOpt match {
+          case Some((result, token)) => Success(token)
+          case None => Failure(new RuntimeException(s"Unable to login under user $user"))
+        }
+      } else {
+        Failure(new RuntimeException(s"Unable to login under user $user"))
       }
     }
   }

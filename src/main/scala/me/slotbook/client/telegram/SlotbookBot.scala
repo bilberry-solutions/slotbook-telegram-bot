@@ -7,10 +7,10 @@ import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
+import me.slotbook.client.telegram.model.slotbook.{Location, UserWithRating}
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
-import me.slotbook.client.telegram.model.slotbook.Location
 import me.slotbook.client.telegram.service.CompaniesSearchParameters.defaultSearchDistance
-import me.slotbook.client.telegram.service.{CompaniesSearchParameters, DefaultSlotbookApiClient, StateService}
+import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
 import org.joda.time.LocalDate
 
 import scala.concurrent.Future
@@ -26,6 +26,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   onCallbackWithTag(MENU_TAG) { implicit callback =>
     val language = languageOf(callback)
+    val user = callback.from
 
     ackCallback(text = Some(Messages("accepted.please.wait")(language)))
 
@@ -43,6 +44,10 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
           case Some(AskForMenuAction.RESET_SEARCH_ACTION_ID) =>
             stateService.reset(callback.from.id).map(_ =>
               replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), language), message))
+          case Some(AskForMenuAction.HISTORY_ID) =>
+            slotbookApiClient.getHistoryOfVisits(user)(language).map { events =>
+              replyWithNew(showHistoryOfEvents(events, prefixTag(LANGUAGE_TAG))(language), message)
+            }
         }
       case None => println("Unable to define <from> of the message")
     }
@@ -121,18 +126,25 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   /* Handling company selection */
   onCallbackWithTag(COMPANY_TAG) { implicit callback =>
-    ackCallback(text = Some(Messages("accepted.please.wait")(languageOf(callback))))
+    val language = languageOf(callback)
+    val user = callback.from
+
+    ackCallback(text = Some(Messages("accepted.please.wait")(language)))
 
     callback.data match {
       case Some(companyId) =>
         callback.message match {
           case Some(message) if message.from.isDefined =>
-            stateService.updateCompany(callback.from.id, companyId.toInt)
-
-            val language = languageOf(callback)
-
-            slotbookApiClient.listEmployeesByCompany(companyId.toInt)(language).map { employees =>
-              replyWithNew(AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))(language), message)
+            stateService.updateCompany(user.id, companyId.toInt)
+            val currentState = stateOf(user.id)
+            currentState.flatMap(_.serviceId) match {
+              case Some(serviceId) =>
+                slotbookApiClient.listEmployeesByCompany(companyId.toInt, serviceId)(language).map {
+                  case employees: Seq[UserWithRating] if employees.nonEmpty =>
+                    replyWithNew(AskForEmployee(employees, prefixTag(EMPLOYEE_TAG))(language), message)
+                  case _ => replyWithNew(Errors.NoEmployees(language), message)
+                }
+              case None => println("Service was not selected")
             }
           case None => println("Unable to extract message from callback")
         }
@@ -176,13 +188,12 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
             val currentState = stateService.current(callback.from.id)
 
             if (currentState.serviceId.isDefined && currentState.employeeId.isDefined) {
-              slotbookApiClient.listSlots(currentState.serviceId.get, currentState.employeeId.get, date)(language).map { slots =>
-                if (slots.nonEmpty) {
-                  replyWithNew(AskForSlot(slots, prefixTag(SLOT_TAG))(language), message)
-                } else {
-                  replyWithNew(Errors.NoSlots(language), message)
+              slotbookApiClient.listSlots(currentState.serviceId.get, currentState.employeeId.get, date)(language)
+                .map {
+                  case slots if slots.nonEmpty =>
+                    replyWithNew(AskForSlot(slots, prefixTag(SLOT_TAG))(language), message)
+                  case _ => replyWithNew(Errors.NoSlots(language), message)
                 }
-              }
             } else {
               reply("Please select a service and employee to register a visit")(message)
             }

@@ -60,8 +60,8 @@ case class AskForMenuAction(prefixTagger: String => String, implicit val lang: L
   val messages = Map(
     START_SEARCH_ACTION_ID -> I18nMessage(Some(searchIcon), "menu.search"),
     CHANGE_LANG_ID -> I18nMessage(Some(languageIcon), "menu.change.language"),
-    CALENDAR -> I18nMessage(Some(calendarIcon), "menu.calendar"),
-    HISTORY -> I18nMessage(Some(historyIcon), "menu.history"),
+    CALENDAR_ID -> I18nMessage(Some(calendarIcon), "menu.calendar"),
+    HISTORY_ID -> I18nMessage(Some(historyIcon), "menu.history"),
     HELP_ACTION_ID -> I18nMessage(Some(helpIcon), "menu.help"),
     RESET_SEARCH_ACTION_ID -> I18nMessage(Some(resetIcon), "menu.reset.search")
   )
@@ -81,8 +81,8 @@ object AskForMenuAction {
   val CHANGE_LANG_ID: Int = 1
   val HELP_ACTION_ID: Int = 2
   val RESET_SEARCH_ACTION_ID: Int = 3
-  val CALENDAR = 4
-  val HISTORY = 5
+  val CALENDAR_ID = 4
+  val HISTORY_ID = 5
 }
 
 case class AskForClientLocation(lang: Lang) extends Reply {
@@ -130,7 +130,7 @@ case class AskForCompany(searchRadius: Int,
                          companies: Seq[CompanyDistanceRating],
                          prefixTagger: String => String)(implicit lang: Lang) extends Reply {
   override def message: String = if (companies.nonEmpty) {
-    I18nMessage(i18n = "ask.for.company").localizedMessage(lang, searchRadius)
+    I18nMessage(i18n = "ask.for.company").localizedMessage(lang, Seq(searchRadius): _*)
   } else {
     I18nMessage(i18n = "no.companies.found").localizedMessage(lang)
   }
@@ -167,7 +167,17 @@ case class AskForSlot(periods: Seq[Period], prefixTagger: String => String)(impl
   override def message: String = I18nMessage(i18n = "ask.for.time").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
-    val data = periods.map(p => (p.period.startTime.toString, p.period.startTime.toString))
+    val data = periods.map(p => (p.timeslot.startTime.toString, p.timeslot.startTime.toString))
+
+    Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
+  }
+}
+
+case class showHistoryOfEvents(events: Seq[PeriodWithUser], prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+  override def message: String = I18nMessage(i18n = "ask.for.history").localizedMessage(lang)
+
+  override def markup: Option[ReplyMarkup] = {
+    val data = events.map(e => (e.period.timeslot.startTime.toString, e.period.timeslot.endTime.toString))
 
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
   }
@@ -183,4 +193,7 @@ object Errors {
     override def message: String = I18nMessage(i18n = "no.free.slots").localizedMessage(lang)
   }
 
+  case class NoEmployees(lang: Lang) extends Reply {
+    override def message: String = I18nMessage(i18n = "no.employees").localizedMessage(lang)
+  }
 }
