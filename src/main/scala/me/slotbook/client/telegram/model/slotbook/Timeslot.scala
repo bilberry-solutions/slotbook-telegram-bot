@@ -3,13 +3,11 @@ package me.slotbook.client.telegram.model.slotbook
 import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
 import play.api.libs.json.{Format, Json}
 
-case class Period(timeslot: Timeslot)
+case class DateWithTimeslot(date: String, periods: Seq[Timeslot])
 
-case class Timeslot(startDate: String, endDate: String, startTime: String, endTime: String)
+case class PeriodWithUser(period: Event, userWithRating: UserWithRating)
 
-case class DateWithTimeslot(date: String, periods: Seq[Period])
-
-case class PeriodWithUser(period: Period, userWithRating: UserWithRating)
+case class Timeslot(period: Event)
 
 object Timeslot {
   type Time = String
@@ -25,10 +23,6 @@ object Timeslot {
 
 object DateWithTimeslot {
   implicit val format: Format[DateWithTimeslot] = Json.format[DateWithTimeslot]
-}
-
-object Period {
-  implicit val format: Format[Period] = Json.format[Period]
 }
 
 object PeriodWithUser {

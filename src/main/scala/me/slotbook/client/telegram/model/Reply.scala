@@ -163,11 +163,11 @@ case class AskForDates(dates: Seq[(String, String)], prefixTagger: String => Str
   }
 }
 
-case class AskForSlot(periods: Seq[Period], prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+case class AskForSlot(timeslots: Seq[Timeslot], prefixTagger: String => String)(implicit lang: Lang) extends Reply {
   override def message: String = I18nMessage(i18n = "ask.for.time").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
-    val data = periods.map(p => (p.timeslot.startTime.toString, p.timeslot.startTime.toString))
+    val data = timeslots.map(t => (t.period.startTime.toString, Constants.dateFormatter.print(t.period.startTime)))
 
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
   }
@@ -177,7 +177,7 @@ case class showHistoryOfEvents(events: Seq[PeriodWithUser], prefixTagger: String
   override def message: String = I18nMessage(i18n = "ask.for.history").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
-    val data = events.map(e => (e.period.timeslot.startTime.toString, e.period.timeslot.endTime.toString))
+    val data = events.map(e => (e.period.startTime.toString, e.period.endTime.toString))
 
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
   }

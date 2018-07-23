@@ -14,7 +14,7 @@ object User {
 
   def loginId(user: info.mukel.telegrambot4s.models.User) = s"telegram:${user.id}@slotbook.me"
 
-  val DEFAULT_PASSWORD = " "
+  val DEFAULT_PASSWORD = ""
 }
 
 object UserWithRating {

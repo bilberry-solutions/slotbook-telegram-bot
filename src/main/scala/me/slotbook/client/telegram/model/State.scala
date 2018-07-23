@@ -8,6 +8,6 @@ case class State(userId: Option[Int] = None,
                  serviceId: Option[Service.ID] = None,
                  companyId: Option[Company.ID] = None,
                  employeeId: Option[User.ID] = None,
-                 location: Option[Location] = None,
+                 location: Option[LatLng] = None,
                  timeSlot: Option[String] = None,
                  lang: Lang = Lang.Default)

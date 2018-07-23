@@ -21,4 +21,4 @@ no.companies.found=Unfortunately I can't find companies which satisfies your nee
 accepted=Roger that!
 menu=Menu
 help=Help
-no.employees=This company doesn''t provide an information about employees :(. Please call them directly.
+no.employees.free.employees=Unfortunately I can''t find any employee available right now :(. Please call me a bit later.

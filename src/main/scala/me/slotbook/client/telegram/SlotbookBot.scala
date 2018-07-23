@@ -7,7 +7,7 @@ import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
-import me.slotbook.client.telegram.model.slotbook.{Location, UserWithRating}
+import me.slotbook.client.telegram.model.slotbook._
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
 import me.slotbook.client.telegram.service.CompaniesSearchParameters.defaultSearchDistance
 import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
@@ -108,7 +108,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   onMessage { implicit message =>
     if (message.location.isDefined && message.from.isDefined) {
-      val loc = message.location.map(loc => Location(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
+      val loc = message.location.map(loc => LatLng(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
       val language = languageOf(message)
       val state = stateOf(message.chat.id.toInt)
 
@@ -209,15 +209,25 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
     callback.data match {
       case Some(timeSlot) =>
         stateService.updateSlot(callback.from.id, timeSlot)
+        val state = stateOf(callback.from.id)
 
-        callback.message match {
-          case Some(message) if message.from.isDefined =>
-            val language = languageOf(callback)
+        if (state.flatMap(_.employeeId).isDefined && state.flatMap(_.companyId).isDefined) {
+          callback.message match {
+            case Some(message) if message.from.isDefined =>
+              val language = languageOf(callback)
+              // create an event to book
+              slotbookApiClient.bindSlot(
+                state.flatMap(_.employeeId).get,
+                state.flatMap(_.companyId).get,
+                timeSlot,
+                callback.from)(languageOf(callback)).map { _ =>
 
-            slotbookApiClient.bindSlot(timeSlot, callback.from)(languageOf(callback)).map { slots =>
-              replyWithNew(EventCreated(language), message)
-            }
-          case None => println("Unable to extract message from callback")
+                replyWithNew(EventCreated(language), message)
+              }
+            case None => println("Unable to extract message from callback")
+          }
+        } else {
+          println("Company id or Employee id undefined in current state")
         }
       case None => println("Slot was not selected")
     }

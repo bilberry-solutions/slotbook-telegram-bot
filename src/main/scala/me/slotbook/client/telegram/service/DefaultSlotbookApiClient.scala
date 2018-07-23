@@ -11,6 +11,7 @@ import play.api.libs.ws.DefaultWSCookie
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.libs.ws.JsonBodyWritables._
 import play.shaded.ahc.org.asynchttpclient.util.HttpConstants.ResponseStatusCodes
+import play.api.libs.json.Json
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success, Try}
@@ -28,13 +29,13 @@ trait SlotbookApiClient {
 
   def listCategoryServices(categoryId: Int)(implicit lang: Lang): Future[Seq[ServiceWithCompaniesCount]]
 
-  def listCompaniesByService(serviceId: Service.ID, location: Option[Location], searchRadius: Option[Int])(implicit lang: Lang): Future[Seq[CompanyDistanceRating]]
+  def listCompaniesByService(serviceId: Service.ID, location: Option[LatLng], searchRadius: Option[Int])(implicit lang: Lang): Future[Seq[CompanyDistanceRating]]
 
   def listEmployeesByCompany(companyId: Company.ID, serviceId: Service.ID)(implicit lang: Lang): Future[Seq[UserWithRating]]
 
-  def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]]
+  def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Timeslot]]
 
-  def bindSlot(slotId: Timeslot.Time, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
+  def bindSlot(employeeId: User.ID, companyId: Company.ID, timeSlot: String, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
 
   def getHistoryOfVisits(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]]
 
@@ -111,7 +112,7 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
     * @return
     */
   override def listCompaniesByService(serviceId: Service.ID,
-                                      location: Option[Location],
+                                      location: Option[LatLng],
                                       searchRadius: Option[Int] = Some(defaultSearchDistance))
                                      (implicit lang: Lang): Future[Seq[CompanyDistanceRating]] = {
     val url = location.map { loc =>
@@ -154,14 +155,14 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       }
   }
 
-  override def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Period]] = {
+  override def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Timeslot]] = {
     wsClient
       .url(s"$apiUrl/employees/$employeeId/slots/$serviceId/$date/1")
       .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
       .get()
       .map { response =>
         if (response.status == ResponseStatusCodes.OK_200) {
-          response.body[JsValue].validate[Seq[DateWithTimeslot]].asOpt.get.flatMap(_.periods)
+          response.body[JsValue].validate[Seq[DateWithTimeslot]].getOrElse(Seq()).flatMap(_.periods)
         } else {
           println(s"Error while requesting list of slots, response: [$response]")
           Seq()
@@ -169,33 +170,40 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       }
   }
 
-  override def bindSlot(timeSlot: Timeslot.Time, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit] = {
-    // first we need to create a new account for the user
-    wsClient.url(s"$apiUrl/auth/account/create")
-      .addHttpHeaders("Content-Type" -> "application/json")
-      .post(UserData.of(user).toJson).map { response =>
-      println(response)
-
-      // extracting token from response
-      response.body[JsValue].validate[(String, String)].asOpt match {
-        case Some((status, token)) =>
-          // put the token into the map
-          println(s"token: $token")
-        case None => println("Unable to register a user")
+  override def bindSlot(employeeId: User.ID, companyId: Company.ID, timeSlot: String, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit] = {
+    // in case user already registered in the system - login first
+    login(user).map {
+      case Success(token) => bind(timeSlot, user, token)
+      case Failure(exception) => register(user).map {
+        case Success(token) => bind(timeSlot, user, token)
+        // update state
+        case Failure(e) => println(e)
       }
     }
 
-    Future.successful()
+    def bind(timeSlot: String, user: info.mukel.telegrambot4s.models.User, token: String) = {
+      wsClient.url(s"$apiUrl/companies/$companyId/employees/$employeeId/events")
+        .withHttpHeaders(
+          "X-Auth-Token" -> token,
+          "Content-Type" -> "application/json; charset=utf-8")
+        .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
+        .post(new Event().toJson).map { response =>
+        println(response)
+      }
+    }
+
+    Future.successful("")
   }
 
   override def getHistoryOfVisits(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]] = {
-    login(user).map { token =>
-      wsClient.url(s"$apiUrl/event/history/")
-        .addHttpHeaders("Authorization" -> s"token $token")
-        .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
-        .get().map { response =>
-        println(response)
-      }
+    login(user).map {
+      case Success(token) =>
+        wsClient.url(s"$apiUrl/event/history/")
+          .addHttpHeaders("Authorization" -> s"token $token")
+          .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
+          .get().map { response =>
+          println(response)
+        }
     }.recover {
       case e: RuntimeException => println(e.getMessage)
     }
@@ -211,12 +219,24 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       println(response)
 
       if (response.status == ResponseStatusCodes.OK_200) {
-        response.body[JsValue].validate[(String, String)].asOpt match {
-          case Some((result, token)) => Success(token)
-          case None => Failure(new RuntimeException(s"Unable to login under user $user"))
-        }
+        Success(response.body[JsValue].\("message").as[String])
       } else {
-        Failure(new RuntimeException(s"Unable to login under user $user"))
+        Failure(new RuntimeException("Unable to register a user"))
+      }
+    }
+  }
+
+  private def register(user: info.mukel.telegrambot4s.models.User): Future[Try[String]] = {
+    wsClient.url(s"$apiUrl/auth/account/create")
+      .addHttpHeaders("Content-Type" -> "application/json")
+      .post(UserData.of(user).toJson).map { response =>
+
+      println(response)
+
+      if (response.status == ResponseStatusCodes.OK_200) {
+        Success(response.body[JsValue].\("message").as[String])
+      } else {
+        Failure(new RuntimeException("Unable to register a user"))
       }
     }
   }

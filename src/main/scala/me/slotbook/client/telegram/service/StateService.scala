@@ -4,7 +4,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.osinka.i18n.Lang
 import me.slotbook.client.telegram.model.State
-import me.slotbook.client.telegram.model.slotbook.Location
+import me.slotbook.client.telegram.model.slotbook.LatLng
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -15,7 +15,7 @@ case class StateService(current: mutable.Map[Int, State] = new ConcurrentHashMap
     this.update(userId, this.current.getOrElse(userId, State()).copy(lang = lang))
   }
 
-  def updateLocation(userId: Int, location: Option[Location]): Unit = {
+  def updateLocation(userId: Int, location: Option[LatLng]): Unit = {
     this.update(userId, this.current.getOrElse(userId, State()).copy(location = location))
   }
 
