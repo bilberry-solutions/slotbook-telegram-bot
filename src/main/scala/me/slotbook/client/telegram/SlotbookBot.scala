@@ -7,6 +7,7 @@ import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
+import me.slotbook.client.telegram.model.slotbook.Constants.timeFormatter
 import me.slotbook.client.telegram.model.slotbook._
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
 import me.slotbook.client.telegram.service.CompaniesSearchParameters.defaultSearchDistance
@@ -45,8 +46,10 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
             stateService.reset(callback.from.id).map(_ =>
               replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), language), message))
           case Some(AskForMenuAction.HISTORY_ID) =>
-            slotbookApiClient.getHistoryOfVisits(user)(language).map { events =>
-              replyWithNew(showHistoryOfEvents(events, prefixTag(LANGUAGE_TAG))(language), message)
+            slotbookApiClient.getHistoryOfVisits(user)(language).map {
+              case events if events.nonEmpty =>
+                replyWithNew(showHistoryOfEvents(events, prefixTag(LANGUAGE_TAG))(language), message)
+              case _ => replyWithNew(Errors.NoSlots(language), message)
             }
         }
       case None => println("Unable to define <from> of the message")
@@ -187,6 +190,8 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
             val language = languageOf(callback)
             val currentState = stateService.current(callback.from.id)
 
+            stateService.updateSlotDate(callback.from.id, dateTimeFormatter.parseLocalDate(date))
+
             if (currentState.serviceId.isDefined && currentState.employeeId.isDefined) {
               slotbookApiClient.listSlots(currentState.serviceId.get, currentState.employeeId.get, date)(language)
                 .map {
@@ -208,18 +213,24 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
     callback.data match {
       case Some(timeSlot) =>
-        stateService.updateSlot(callback.from.id, timeSlot)
-        val state = stateOf(callback.from.id)
+        val currentState = stateOf(callback.from.id)
+        stateService.updateSlotTimes(callback.from.id, Timeslot.parseTimeslot(timeSlot))
 
-        if (state.flatMap(_.employeeId).isDefined && state.flatMap(_.companyId).isDefined) {
+        if (currentState.flatMap(_.employeeId).isDefined
+          && currentState.flatMap(_.companyId).isDefined
+          && currentState.flatMap(_.slotDate).isDefined
+          && currentState.flatMap(_.slotTimes).isDefined
+        ) {
+
           callback.message match {
             case Some(message) if message.from.isDefined =>
               val language = languageOf(callback)
-              // create an event to book
+
               slotbookApiClient.bindSlot(
-                state.flatMap(_.employeeId).get,
-                state.flatMap(_.companyId).get,
-                timeSlot,
+                currentState.flatMap(_.employeeId).get,
+                currentState.flatMap(_.companyId).get,
+                currentState.flatMap(_.slotDate).get,
+                currentState.flatMap(_.slotTimes).get,
                 callback.from)(languageOf(callback)).map { _ =>
 
                 replyWithNew(EventCreated(language), message)

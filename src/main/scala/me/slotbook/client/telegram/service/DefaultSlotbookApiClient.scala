@@ -36,7 +36,8 @@ trait SlotbookApiClient {
 
   def listSlots(serviceId: Service.ID, employeeId: User.ID, date: String)(implicit lang: Lang): Future[Seq[Timeslot]]
 
-  def bindSlot(employeeId: User.ID, companyId: Company.ID, timeSlot: String, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
+  def bindSlot(employeeId: User.ID, companyId: Company.ID, slotDate: LocalDate, slotTimes: Timeslot.Times,
+               user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit]
 
   def getHistoryOfVisits(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]]
 
@@ -78,12 +79,10 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
       .get()
       .map { response =>
-        println(response)
-
         if (response.status == 200) {
           response.body[JsValue].validate[Seq[Service]].asOpt.getOrElse(Seq())
         } else {
-          println(s"Unable to get categories $response")
+          println(s"Unable to get categories $response. Returning empty list.")
           Seq()
         }
       }
@@ -165,20 +164,22 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
         if (response.status == ResponseStatusCodes.OK_200) {
           response.body[JsValue].validate[Seq[DateWithTimeslot]].getOrElse(Seq()).flatMap(_.periods)
         } else {
-          println(s"Error while requesting list of slots, response: [$response]")
+          println(s"Error while requesting list of slots, response: [$response]. Returning empty list")
           Seq()
         }
       }
   }
 
-  override def bindSlot(employeeId: User.ID, companyId: Company.ID, timeSlot: String, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit] = {
+  override def bindSlot(employeeId: User.ID, companyId: Company.ID, slotDate: LocalDate, slotTimes: Timeslot.Times,
+                        user: info.mukel.telegrambot4s.models.User)
+                       (implicit lang: Lang): Future[Unit] = {
     // in case user already registered in the system - login first
     authenticate(user).map {
-      case Some(token) => bind(timeSlot, user, token)
+      case Some(token) => bind(slotDate, slotTimes, user, token)
       case None => println("Unable to perform binding because of user was not authenticated")
     }
 
-    def bind(timeSlot: String, user: info.mukel.telegrambot4s.models.User, token: String) = {
+    def bind(slotDate: LocalDate, slotTimes: Timeslot.Times, user: info.mukel.telegrambot4s.models.User, token: String) = {
       wsClient
         .url(s"$apiUrl/companies/$companyId/employees/$employeeId/events")
         .withHttpHeaders(
@@ -189,10 +190,10 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
         .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
         .post(
           new Event(
-            startDate = LocalDate.now,
-            endDate = LocalDate.now,
-            startTime = LocalTime.MIDNIGHT,
-            endTime = LocalTime.MIDNIGHT.plusHours(1)
+            startDate = slotDate,
+            endDate = slotDate,
+            startTime = slotTimes._1,
+            endTime = slotTimes._2
           ).toJson).map { response =>
         println(response)
       }
@@ -202,21 +203,23 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
   }
 
   override def getHistoryOfVisits(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]] = {
-    login(user).map {
+    login(user).flatMap {
       case Success(token) =>
         wsClient.url(s"$apiUrl/events/history")
           .addHttpHeaders("X-Auth-Token" -> token)
           .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
           .get().map { response =>
-          val events = response.body[JsValue].validate[Seq[Event]]
-
           println(response)
-        }
-    }.recover {
-      case e: RuntimeException => println(e.getMessage)
-    }
 
-    Future.successful(Seq())
+          response.body[JsValue]
+            .validate[Seq[Event]].asOpt.getOrElse(Seq())
+            .map(e => PeriodWithUser(e, UserWithRating(null, 5)))
+        }
+      case Failure(exception) =>
+        println(exception)
+
+        Future.successful(Seq())
+    }
   }
 
   override def calendar(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]] = ???

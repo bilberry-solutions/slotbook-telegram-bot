@@ -3,6 +3,7 @@ package me.slotbook.client.telegram.model
 import com.osinka.i18n.{Lang, Messages}
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Buttons.menuButton
+import me.slotbook.client.telegram.model.slotbook.Constants.timeFormatter
 import me.slotbook.client.telegram.model.slotbook._
 
 sealed trait Reply {
@@ -167,7 +168,7 @@ case class AskForSlot(timeslots: Seq[Timeslot], prefixTagger: String => String)(
   override def message: String = I18nMessage(i18n = "ask.for.time").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
-    val data = timeslots.map(t => (t.period.startTime.toString, Constants.dateFormatter.print(t.period.startTime)))
+    val data = timeslots.map(t => (Timeslot.printTimeslot(t.period.startTime, t.period.endTime), timeFormatter.print(t.period.startTime)))
 
     Some(InlineKeyboardMarkup.singleColumn(buttonsFor(data)(prefixTagger)))
   }
@@ -196,4 +197,5 @@ object Errors {
   case class NoEmployees(lang: Lang) extends Reply {
     override def message: String = I18nMessage(i18n = "no.employees").localizedMessage(lang)
   }
+
 }

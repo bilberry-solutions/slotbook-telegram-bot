@@ -4,7 +4,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.osinka.i18n.Lang
 import me.slotbook.client.telegram.model.State
-import me.slotbook.client.telegram.model.slotbook.LatLng
+import me.slotbook.client.telegram.model.slotbook.{LatLng, Timeslot}
+import org.joda.time.LocalDate
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -35,8 +36,12 @@ case class StateService(current: mutable.Map[Int, State] = new ConcurrentHashMap
     this.update(userId, this.current.getOrElse(userId, State()).copy(employeeId = Some(employeeId)))
   }
 
-  def updateSlot(userId: Int, timeSlot: String): Unit = {
-    this.update(userId, this.current.getOrElse(userId, State()).copy(timeSlot = Some(timeSlot)))
+  def updateSlotDate(userId: Int, date: LocalDate): Unit = {
+    this.update(userId, this.current.getOrElse(userId, State()).copy(slotDate = Some(date)))
+  }
+
+  def updateSlotTimes(userId: Int, times: Timeslot.Times): Unit = {
+    this.update(userId, this.current.getOrElse(userId, State()).copy(slotTimes = Some(times)))
   }
 
   private def update(userId: Int, state: State): Unit = {
