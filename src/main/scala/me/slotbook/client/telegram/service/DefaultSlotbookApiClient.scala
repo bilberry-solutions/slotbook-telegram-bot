@@ -7,6 +7,7 @@ import com.osinka.i18n.Lang
 import com.typesafe.scalalogging.Logger
 import me.slotbook.client.telegram.model.slotbook.{UserData, _}
 import me.slotbook.client.telegram.service.CompaniesSearchParameters.{defaultSearchCount, defaultSearchDistance}
+import org.joda.time.{LocalDate, LocalTime}
 import play.api.libs.ws.DefaultWSCookie
 import play.api.libs.ws.ahc.StandaloneAhcWSClient
 import play.api.libs.ws.JsonBodyWritables._
@@ -172,22 +173,27 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
 
   override def bindSlot(employeeId: User.ID, companyId: Company.ID, timeSlot: String, user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Unit] = {
     // in case user already registered in the system - login first
-    login(user).map {
-      case Success(token) => bind(timeSlot, user, token)
-      case Failure(exception) => register(user).map {
-        case Success(token) => bind(timeSlot, user, token)
-        // update state
-        case Failure(e) => println(e)
-      }
+    authenticate(user).map {
+      case Some(token) => bind(timeSlot, user, token)
+      case None => println("Unable to perform binding because of user was not authenticated")
     }
 
     def bind(timeSlot: String, user: info.mukel.telegrambot4s.models.User, token: String) = {
-      wsClient.url(s"$apiUrl/companies/$companyId/employees/$employeeId/events")
+      wsClient
+        .url(s"$apiUrl/companies/$companyId/employees/$employeeId/events")
         .withHttpHeaders(
           "X-Auth-Token" -> token,
-          "Content-Type" -> "application/json; charset=utf-8")
+          "Content-Type" -> "application/json; charset=utf-8",
+          "Csrf-Token" -> "nocheck"
+        )
         .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
-        .post(new Event().toJson).map { response =>
+        .post(
+          new Event(
+            startDate = LocalDate.now,
+            endDate = LocalDate.now,
+            startTime = LocalTime.MIDNIGHT,
+            endTime = LocalTime.MIDNIGHT.plusHours(1)
+          ).toJson).map { response =>
         println(response)
       }
     }
@@ -198,10 +204,12 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
   override def getHistoryOfVisits(user: info.mukel.telegrambot4s.models.User)(implicit lang: Lang): Future[Seq[PeriodWithUser]] = {
     login(user).map {
       case Success(token) =>
-        wsClient.url(s"$apiUrl/event/history/")
-          .addHttpHeaders("Authorization" -> s"token $token")
+        wsClient.url(s"$apiUrl/events/history")
+          .addHttpHeaders("X-Auth-Token" -> token)
           .addCookies(DefaultWSCookie(langCookies, lang.locale.getLanguage))
           .get().map { response =>
+          val events = response.body[JsValue].validate[Seq[Event]]
+
           println(response)
         }
     }.recover {
@@ -227,6 +235,8 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
   }
 
   private def register(user: info.mukel.telegrambot4s.models.User): Future[Try[String]] = {
+    println(s"registering $user")
+
     wsClient.url(s"$apiUrl/auth/account/create")
       .addHttpHeaders("Content-Type" -> "application/json")
       .post(UserData.of(user).toJson).map { response =>
@@ -240,4 +250,16 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
       }
     }
   }
+
+  def authenticate(user: info.mukel.telegrambot4s.models.User): Future[Option[String]] = {
+    login(user).flatMap {
+      case Success(token) => Future.successful(Some(token))
+      case Failure(_) => register(user).map {
+        case Success(token) => Some(token)
+        case Failure(_) => None
+      }
+    }
+  }
+
+  def doAsAuthenticated[U, T](user: info.mukel.telegrambot4s.models.User, isAuthenticated: U => T, isNotAuthenticated: => T): T = ???
 }
