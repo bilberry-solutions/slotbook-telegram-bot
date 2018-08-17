@@ -1,5 +1,6 @@
 package me.slotbook.client.telegram.model.slotbook
 
+import me.slotbook.client.telegram.model.JodaDateFieldFormat
 import org.joda.time.LocalTime.MIDNIGHT
 import org.joda.time.{LocalDate, LocalTime}
 import play.api.libs.functional.syntax._
