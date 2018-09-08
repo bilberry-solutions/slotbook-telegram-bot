@@ -110,6 +110,10 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   }
 
   onMessage { implicit message =>
+    if (message.from.isDefined) {
+      slotbookApiClient.authenticate(message.from.get)
+    }
+
     if (message.location.isDefined && message.from.isDefined) {
       val loc = message.location.map(loc => LatLng(BigDecimal(loc.latitude), BigDecimal(loc.longitude)))
       val language = languageOf(message)
@@ -166,8 +170,8 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         callback.message match {
           case Some(message) if message.from.isDefined =>
             val dates = 1.to(3)
-              .map(LocalDate.now.toDateTimeAtStartOfDay.plusDays(_))
-              .map(d => (dateTimeFormatter.print(d), dateFormatter.print(d)))
+                    .map(LocalDate.now.toDateTimeAtStartOfDay.plusDays(_))
+                    .map(d => (dateTimeFormatter.print(d), dateFormatter.print(d)))
 
             // TODO check why api returns slots in the past
             val rpl = AskForDates(dates, prefixTag(DATE_TAG))(languageOf(callback))
@@ -194,11 +198,11 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
             if (currentState.serviceId.isDefined && currentState.employeeId.isDefined) {
               slotbookApiClient.listSlots(currentState.serviceId.get, currentState.employeeId.get, date)(language)
-                .map {
-                  case slots if slots.nonEmpty =>
-                    replyWithNew(AskForSlot(slots, prefixTag(SLOT_TAG))(language), message)
-                  case _ => replyWithNew(Errors.NoSlots(language), message)
-                }
+                      .map {
+                        case slots if slots.nonEmpty =>
+                          replyWithNew(AskForSlot(slots, prefixTag(SLOT_TAG))(language), message)
+                        case _ => replyWithNew(Errors.NoSlots(language), message)
+                      }
             } else {
               reply("Please select a service and employee to register a visit")(message)
             }
@@ -217,9 +221,9 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         stateService.updateSlotTimes(callback.from.id, Timeslot.parseTimeslot(timeSlot))
 
         if (currentState.flatMap(_.employeeId).isDefined
-          && currentState.flatMap(_.companyId).isDefined
-          && currentState.flatMap(_.slotDate).isDefined
-          && currentState.flatMap(_.slotTimes).isDefined
+                && currentState.flatMap(_.companyId).isDefined
+                && currentState.flatMap(_.slotDate).isDefined
+                && currentState.flatMap(_.slotTimes).isDefined
         ) {
 
           callback.message match {
