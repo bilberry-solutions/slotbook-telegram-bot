@@ -4,7 +4,7 @@ import me.slotbook.client.telegram.model.slotbook.User.loginId
 import play.api.libs.json.{Format, JsValue, Json}
 import play.api.libs.ws.DefaultBodyWritables
 
-case class UserData(loginId: String, firstName: String, email: Option[String] = None, phone: Option[String] = None) extends DefaultBodyWritables {
+case class UserData(loginId: String, firstName: String, email: Option[String] = None, phone: Option[String] = None, telegram: String) extends DefaultBodyWritables {
   def toJson: JsValue = UserData.jsonFormat.writes(this)
 }
 
@@ -16,7 +16,7 @@ object UserData {
   implicit val jsonFormat: Format[UserData] = Json.format[UserData]
 
   def of(user: info.mukel.telegrambot4s.models.User): UserData = {
-    UserData(loginId = loginId(user), firstName = user.firstName, email = None, phone = None)
+    UserData(loginId = loginId(user), firstName = user.firstName, email = None, phone = None, telegram = user.id.toString)
   }
 }
 
