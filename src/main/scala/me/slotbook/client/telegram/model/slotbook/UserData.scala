@@ -15,8 +15,8 @@ case class UserLoginData(email: String, password: String, rememberMe: Boolean = 
 object UserData {
   implicit val jsonFormat: Format[UserData] = Json.format[UserData]
 
-  def of(user: info.mukel.telegrambot4s.models.User): UserData = {
-    UserData(loginId = loginId(user), firstName = user.firstName, email = None, phone = None, telegram = user.id.toString)
+  def of(user: info.mukel.telegrambot4s.models.User, chatId: Long): UserData = {
+    UserData(loginId = loginId(user), firstName = user.firstName, email = None, phone = None, telegram = chatId.toString)
   }
 }
 

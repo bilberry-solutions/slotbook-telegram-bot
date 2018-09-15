@@ -111,7 +111,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   onMessage { implicit message =>
     if (message.from.isDefined) {
-      slotbookApiClient.authenticate(message.from.get)
+      slotbookApiClient.authenticate(message.from.get, message.chat.id)
     }
 
     if (message.location.isDefined && message.from.isDefined) {
@@ -271,6 +271,8 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   def from(message: Message): Option[Int] = message.from.map(_.id)
 
   override def receiveMessage(msg: Message): Unit = {
+    println(msg)
+    println(msg.chat)
     super.receiveMessage(msg)
   }
 
