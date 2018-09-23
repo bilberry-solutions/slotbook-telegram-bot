@@ -57,8 +57,8 @@ class DefaultSlotbookApiClient extends SlotbookApiClient {
 
   import scala.concurrent.ExecutionContext.Implicits._
 
-  val apiUrl = "http://127.0.0.1:9000/api"
-  //val apiUrl = "http://206.189.3.71/api"
+  //val apiUrl = "http://127.0.0.1:9000/api"
+  val apiUrl = "http://206.189.3.71/api"
   val langCookies = "PLAY_LANG"
 
   implicit val system = ActorSystem()
