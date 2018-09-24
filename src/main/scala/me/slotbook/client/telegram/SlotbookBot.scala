@@ -272,7 +272,6 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   override def receiveMessage(msg: Message): Unit = {
     println(msg)
-    println(msg.chat)
     super.receiveMessage(msg)
   }
 
