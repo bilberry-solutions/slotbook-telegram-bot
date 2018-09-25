@@ -14,4 +14,4 @@ WORKDIR /SlotbookTelegramBot
 
 COPY . /SlotbookTelegramBot
 
-CMD sbt run
+CMD SBT_OPTS="-Xms512M -Xmx912M -Xss2M -XX:MaxMetaspaceSize=912M" sbt run
