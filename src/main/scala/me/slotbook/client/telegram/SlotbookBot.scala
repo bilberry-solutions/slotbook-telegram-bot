@@ -237,7 +237,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
                 currentState.flatMap(_.slotTimes).get,
                 callback.from)(languageOf(callback)).map { _ =>
 
-                replyWithNew(EventCreated(language), message)
+                replyOverriding(EventCreated(language), message)
               }
             case None => println("Unable to extract message from callback")
           }
