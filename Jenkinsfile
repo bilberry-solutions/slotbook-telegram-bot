@@ -36,5 +36,5 @@ def sbtPublishLocal() {
 }
 
 def runApp(){
-    sh '/opt/services/slotbook-notification-service/restart.sh'
+    sh '/opt/services/slotbook-telegram-bot/restart.sh'
 }
