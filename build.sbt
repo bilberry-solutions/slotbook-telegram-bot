@@ -11,6 +11,6 @@ libraryDependencies += "com.osinka.i18n" %% "scala-i18n" % "1.0.2"
 enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
 enablePlugins(AshScriptPlugin)
-mainClass in Compile := Some("me.slotbook.QuickstartServer")
+mainClass in Compile := Some("me.slotbook.client.telegram.SlotbookBotApp")
 dockerBaseImage := "openjdk:jre-alpine"
 dockerRepository := Some("localhost:5000")
