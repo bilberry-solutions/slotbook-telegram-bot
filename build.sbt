@@ -1,8 +1,4 @@
-
 name := "slotbook-telegram-bot"
-
-version := "1.0"
-
 scalaVersion := "2.12.5"
 
 val playWsStandaloneVersion: String = "2.0.0-M1"
@@ -17,3 +13,4 @@ enablePlugins(DockerPlugin)
 enablePlugins(AshScriptPlugin)
 mainClass in Compile := Some("me.slotbook.QuickstartServer")
 dockerBaseImage := "openjdk:jre-alpine"
+dockerRepository := Some("localhost:5000")
