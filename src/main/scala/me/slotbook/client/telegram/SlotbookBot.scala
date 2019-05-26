@@ -7,9 +7,8 @@ import info.mukel.telegrambot4s.methods.EditMessageReplyMarkup
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Tags._
 import me.slotbook.client.telegram.model._
-import me.slotbook.client.telegram.model.slotbook.Constants.timeFormatter
-import me.slotbook.client.telegram.model.slotbook._
 import me.slotbook.client.telegram.model.slotbook.Timeslot.{dateFormatter, dateTimeFormatter}
+import me.slotbook.client.telegram.model.slotbook._
 import me.slotbook.client.telegram.service.CompaniesSearchParameters.defaultSearchDistance
 import me.slotbook.client.telegram.service.{DefaultSlotbookApiClient, StateService}
 import org.joda.time.LocalDate
@@ -223,8 +222,7 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
         if (currentState.flatMap(_.employeeId).isDefined
                 && currentState.flatMap(_.companyId).isDefined
                 && currentState.flatMap(_.slotDate).isDefined
-                && currentState.flatMap(_.slotTimes).isDefined
-        ) {
+                && currentState.flatMap(_.slotTimes).isDefined) {
 
           callback.message match {
             case Some(message) if message.from.isDefined =>
@@ -250,7 +248,8 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
 
   def replyOverriding(reply: Reply, message: Message): Future[Either[Boolean, Message]] = {
     request(
-      EditMessageReplyMarkup(Some(ChatId(message.source)),
+      EditMessageReplyMarkup(
+        Some(ChatId(message.source)),
         Some(message.messageId),
         replyMarkup = reply.markup.map(_.asInstanceOf[InlineKeyboardMarkup])))
   }

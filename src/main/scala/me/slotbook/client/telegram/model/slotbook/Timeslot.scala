@@ -1,8 +1,8 @@
 package me.slotbook.client.telegram.model.slotbook
 
 import org.joda.time.LocalTime
-import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
-import play.api.libs.json.{Format, Json}
+import org.joda.time.format.{ DateTimeFormat, DateTimeFormatter }
+import play.api.libs.json.{ Format, Json }
 
 case class DateWithTimeslot(date: String, periods: Seq[Timeslot])
 

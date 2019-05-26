@@ -1,6 +1,6 @@
 package me.slotbook.client.telegram.model
 
-import com.osinka.i18n.{Lang, Messages}
+import com.osinka.i18n.{ Lang, Messages }
 import info.mukel.telegrambot4s.models._
 import me.slotbook.client.telegram.model.Buttons.menuButton
 import me.slotbook.client.telegram.model.slotbook.Constants.timeFormatter
@@ -64,8 +64,7 @@ case class AskForMenuAction(prefixTagger: String => String, implicit val lang: L
     CALENDAR_ID -> I18nMessage(Some(calendarIcon), "menu.calendar"),
     HISTORY_ID -> I18nMessage(Some(historyIcon), "menu.history"),
     HELP_ACTION_ID -> I18nMessage(Some(helpIcon), "menu.help"),
-    RESET_SEARCH_ACTION_ID -> I18nMessage(Some(resetIcon), "menu.reset.search")
-  )
+    RESET_SEARCH_ACTION_ID -> I18nMessage(Some(resetIcon), "menu.reset.search"))
 
   override def message: String = {
     I18nMessage(i18n = "ask.for.menu.item").localizedMessage(lang)
@@ -104,8 +103,9 @@ case class AskForNewLanguage(prefixTagger: String => String)(implicit lang: Lang
   }
 }
 
-case class AskForServiceCategory(categories: Seq[Service],
-                                 prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+case class AskForServiceCategory(
+  categories: Seq[Service],
+  prefixTagger: String => String)(implicit lang: Lang) extends Reply {
   override def message: String = I18nMessage(i18n = "ask.for.service.category").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
@@ -116,8 +116,9 @@ case class AskForServiceCategory(categories: Seq[Service],
   }
 }
 
-case class AskForClientService(services: Seq[ServiceWithCompaniesCount],
-                               prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+case class AskForClientService(
+  services: Seq[ServiceWithCompaniesCount],
+  prefixTagger: String => String)(implicit lang: Lang) extends Reply {
   override def message: String = I18nMessage(i18n = "ask.for.service").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {
@@ -127,9 +128,10 @@ case class AskForClientService(services: Seq[ServiceWithCompaniesCount],
   }
 }
 
-case class AskForCompany(searchRadius: Int,
-                         companies: Seq[CompanyDistanceRating],
-                         prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+case class AskForCompany(
+  searchRadius: Int,
+  companies: Seq[CompanyDistanceRating],
+  prefixTagger: String => String)(implicit lang: Lang) extends Reply {
   override def message: String = if (companies.nonEmpty) {
     I18nMessage(i18n = "ask.for.company").localizedMessage(lang, Seq(searchRadius): _*)
   } else {
@@ -145,8 +147,9 @@ case class AskForCompany(searchRadius: Int,
   }
 }
 
-case class AskForEmployee(employees: Seq[UserWithRating],
-                          prefixTagger: String => String)(implicit lang: Lang) extends Reply {
+case class AskForEmployee(
+  employees: Seq[UserWithRating],
+  prefixTagger: String => String)(implicit lang: Lang) extends Reply {
   override def message: String = I18nMessage(i18n = "ask.for.employee").localizedMessage(lang)
 
   override def markup: Option[ReplyMarkup] = {

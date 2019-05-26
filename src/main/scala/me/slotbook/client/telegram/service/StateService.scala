@@ -4,7 +4,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.osinka.i18n.Lang
 import me.slotbook.client.telegram.model.State
-import me.slotbook.client.telegram.model.slotbook.{LatLng, Timeslot}
+import me.slotbook.client.telegram.model.slotbook.{ LatLng, Timeslot }
 import org.joda.time.LocalDate
 
 import scala.collection.JavaConverters._

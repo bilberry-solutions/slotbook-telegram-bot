@@ -1,7 +1,7 @@
 package me.slotbook.client.telegram.model.slotbook
 
-import org.joda.time.format.{DateTimeFormat, DateTimeFormatter}
-import org.joda.time.{DateTime, LocalDate, LocalTime}
+import org.joda.time.format.{ DateTimeFormat, DateTimeFormatter }
+import org.joda.time.{ DateTime, LocalDate, LocalTime }
 
 object Constants {
   val timeFormatPattern = "HH:mm"

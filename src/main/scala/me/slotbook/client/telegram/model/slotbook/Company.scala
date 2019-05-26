@@ -1,7 +1,7 @@
 package me.slotbook.client.telegram.model.slotbook
 
-import me.slotbook.client.telegram.model.slotbook.Company.{ID, Name}
-import play.api.libs.json.{Format, Json}
+import me.slotbook.client.telegram.model.slotbook.Company.{ ID, Name }
+import play.api.libs.json.{ Format, Json }
 
 case class Company(id: ID, name: Name)
 

@@ -34,4 +34,3 @@ class InMemoryStateDao extends StateDao {
   override def getAll: Future[Seq[USER_ID]] = Future.successful(state.keys.toSeq)
 }
 
-

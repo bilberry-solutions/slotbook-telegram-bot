@@ -1,6 +1,6 @@
 package me.slotbook.client.telegram.model.slotbook
 
-import play.api.libs.json.{Format, Json}
+import play.api.libs.json.{ Format, Json }
 
 case class User(id: User.ID, firstName: User.Name, lastName: User.Name)
 
