@@ -20,8 +20,9 @@ class SlotbookBot(val token: String) extends TelegramBot with Polling with Comma
   val slotbookApiClient: DefaultSlotbookApiClient = new DefaultSlotbookApiClient()
   val stateService = StateService()
 
-  onCommand('menu, 'start) { implicit msg =>
-    replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), languageOf(msg)), msg)
+  onCommand('menu, 'start) { implicit message =>
+    replyWithNew(AskForNewLanguage(prefixTag(LANGUAGE_TAG))(language), message)
+    //replyWithNew(AskForMenuAction(prefixTag(MENU_TAG), languageOf(msg)), msg)
   }
 
   onCallbackWithTag(MENU_TAG) { implicit callback =>
